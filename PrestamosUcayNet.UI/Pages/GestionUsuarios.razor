@@ -1,0 +1,392 @@
+@page "/gestion-usuarios"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador")]
+@inject UsuariosApiService UsuariosService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Gestión de Usuarios — Préstamos UcayNet</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-1">
+    <MudIcon Icon="@Icons.Material.Filled.People" Class="mr-2" Style="vertical-align: middle;" />
+    Gestión de Usuarios
+</MudText>
+<MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mb-4">
+    Administra los usuarios y roles del sistema
+</MudText>
+
+<MudPaper Elevation="2" Class="pa-4" Style="border-radius: 12px;">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudTextField @bind-Value="_searchString" Placeholder="Buscar usuario..."
+            Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+            Variant="Variant.Outlined" Margin="Margin.Dense"
+            Style="max-width: 350px;" Immediate="true" />
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+            StartIcon="@Icons.Material.Filled.PersonAdd"
+            OnClick="OpenCrearDialog"
+            Style="border-radius: 8px; text-transform: none;">
+            Nuevo Usuario
+        </MudButton>
+    </div>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-4" />
+    }
+
+    <MudDataGrid T="UsuarioListModel" Items="@_filteredUsers" Dense="true"
+        Hover="true" Striped="true" Bordered="false"
+        Style="border-radius: 8px;"
+        RowsPerPage="10">
+        <Columns>
+            <PropertyColumn Property="x => x.NombreCompleto" Title="Nombre Completo" />
+            <PropertyColumn Property="x => x.Email" Title="Correo" />
+            <TemplateColumn Title="Roles">
+                <CellTemplate>
+                    @foreach (var rol in context.Item.Roles)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="@GetRolColor(rol)" Variant="Variant.Outlined">
+                            @GetRolDisplay(rol)
+                        </MudChip>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Estado">
+                <CellTemplate>
+                    @if (context.Item.Activo)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">Activo</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled">Inactivo</MudChip>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Último Acceso">
+                <CellTemplate>
+                    @(context.Item.UltimoAcceso?.ToString("dd/MM/yyyy HH:mm") ?? "Nunca")
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Acciones" CellStyle="width: 200px;">
+                <CellTemplate>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                        OnClick="@(() => OpenEditarDialog(context.Item))" Title="Editar" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Lock" Color="Color.Warning" Size="Size.Small"
+                        OnClick="@(() => OpenCambiarPasswordDialog(context.Item))" Title="Cambiar Contraseña" />
+                    @if (context.Item.Activo)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.PersonOff" Color="Color.Error" Size="Size.Small"
+                            OnClick="@(() => DesactivarUsuario(context.Item))" Title="Desactivar" />
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="UsuarioListModel" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@* ── Diálogo: Crear Usuario ── *@
+<MudDialog @bind-Visible="_showCrearDialog" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Class="mr-2" Style="vertical-align: middle;" />
+            Nuevo Usuario
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_nuevoUsuario.NombreCompleto" Label="Nombre Completo"
+            Variant="Variant.Outlined" Class="mb-3" Required="true" />
+        <MudTextField @bind-Value="_nuevoUsuario.Email" Label="Correo Electrónico"
+            Variant="Variant.Outlined" InputType="InputType.Email" Class="mb-3" Required="true" />
+        <MudTextField @bind-Value="_nuevoUsuario.Password" Label="Contraseña"
+            Variant="Variant.Outlined" InputType="InputType.Password" Class="mb-3" Required="true"
+            HelperText="Mínimo 8 caracteres, mayúscula, número y carácter especial" />
+        <MudSelect @bind-Value="_nuevoUsuario.Rol" Label="Rol" Variant="Variant.Outlined" Class="mb-3" Required="true">
+            @foreach (var rol in _rolesDisponibles)
+            {
+                <MudSelectItem Value="@rol">@GetRolDisplay(rol)</MudSelectItem>
+            }
+        </MudSelect>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showCrearDialog = false)" Variant="Variant.Text">Cancelar</MudButton>
+        <MudButton OnClick="CrearUsuario" Variant="Variant.Filled" Color="Color.Primary"
+            Disabled="@_saving">
+            @if (_saving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            Crear
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Diálogo: Editar Usuario ── *@
+<MudDialog @bind-Visible="_showEditarDialog" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Edit" Class="mr-2" Style="vertical-align: middle;" />
+            Editar Usuario
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_editarUsuario.NombreCompleto" Label="Nombre Completo"
+            Variant="Variant.Outlined" Class="mb-3" Required="true" />
+        <MudTextField @bind-Value="_editarUsuario.Email" Label="Correo Electrónico"
+            Variant="Variant.Outlined" InputType="InputType.Email" Class="mb-3" Required="true" />
+        <MudSelect T="string" Label="Roles" Variant="Variant.Outlined" Class="mb-3"
+            MultiSelection="true" SelectedValues="_selectedRoles" SelectedValuesChanged="OnSelectedRolesChanged">
+            @foreach (var rol in _rolesDisponibles)
+            {
+                <MudSelectItem Value="@rol">@GetRolDisplay(rol)</MudSelectItem>
+            }
+        </MudSelect>
+        <MudSwitch @bind-Value="_editarUsuario.Activo" Color="Color.Success" Label="Usuario Activo" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showEditarDialog = false)" Variant="Variant.Text">Cancelar</MudButton>
+        <MudButton OnClick="ActualizarUsuario" Variant="Variant.Filled" Color="Color.Primary"
+            Disabled="@_saving">
+            @if (_saving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            Guardar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Diálogo: Cambiar Contraseña ── *@
+<MudDialog @bind-Visible="_showPasswordDialog" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" Class="mr-2" Style="vertical-align: middle;" />
+            Cambiar Contraseña
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-3" Color="Color.Secondary">
+            Cambiando contraseña para: <b>@_passwordUserName</b>
+        </MudText>
+        <MudTextField @bind-Value="_cambiarPassword.PasswordActual" Label="Contraseña Actual"
+            Variant="Variant.Outlined" InputType="InputType.Password" Class="mb-3" Required="true" />
+        <MudTextField @bind-Value="_cambiarPassword.PasswordNuevo" Label="Nueva Contraseña"
+            Variant="Variant.Outlined" InputType="InputType.Password" Class="mb-3" Required="true"
+            HelperText="Mínimo 8 caracteres, mayúscula, número y carácter especial" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showPasswordDialog = false)" Variant="Variant.Text">Cancelar</MudButton>
+        <MudButton OnClick="CambiarPassword" Variant="Variant.Filled" Color="Color.Warning"
+            Disabled="@_saving">
+            @if (_saving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            Cambiar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Diálogo: Confirmar Desactivación ── *@
+<MudDialog @bind-Visible="_showConfirmDialog" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Warning" Class="mr-2" Color="Color.Warning" Style="vertical-align: middle;" />
+            Confirmar Desactivación
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText>¿Está seguro de desactivar al usuario <b>@_confirmUsuario?.NombreCompleto</b>?</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">
+            El usuario no podrá iniciar sesión en el sistema.
+        </MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showConfirmDialog = false)" Variant="Variant.Text">Cancelar</MudButton>
+        <MudButton OnClick="ConfirmarDesactivacion" Variant="Variant.Filled" Color="Color.Error">Desactivar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<UsuarioListModel> _usuarios = [];
+    private List<string> _rolesDisponibles = [];
+    private string _searchString = string.Empty;
+    private bool _loading = true;
+    private bool _saving = false;
+
+    // Diálogos
+    private bool _showCrearDialog = false;
+    private bool _showEditarDialog = false;
+    private bool _showPasswordDialog = false;
+    private DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Small, FullWidth = true };
+
+    // Modelos
+    private RegistroUsuarioModel _nuevoUsuario = new();
+    private ActualizarUsuarioModel _editarUsuario = new();
+    private string _editarUsuarioId = string.Empty;
+    private CambiarPasswordModel _cambiarPassword = new();
+    private string _passwordUserId = string.Empty;
+    private string _passwordUserName = string.Empty;
+    private IReadOnlyCollection<string> _selectedRoles = Array.Empty<string>();
+    private bool _showConfirmDialog = false;
+    private UsuarioListModel? _confirmUsuario;
+
+    private IEnumerable<UsuarioListModel> _filteredUsers =>
+        string.IsNullOrWhiteSpace(_searchString)
+            ? _usuarios
+            : _usuarios.Where(u =>
+                u.NombreCompleto.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ||
+                u.Email.Contains(_searchString, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarDatos();
+    }
+
+    async Task CargarDatos()
+    {
+        _loading = true;
+        try
+        {
+            _usuarios = await UsuariosService.ObtenerTodosAsync();
+            _rolesDisponibles = await UsuariosService.ObtenerRolesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar datos: {ex.Message}", Severity.Error);
+        }
+        _loading = false;
+    }
+
+    // ── Crear ──
+    void OpenCrearDialog()
+    {
+        _nuevoUsuario = new RegistroUsuarioModel();
+        _showCrearDialog = true;
+    }
+
+    async Task CrearUsuario()
+    {
+        _saving = true;
+        var (success, error) = await UsuariosService.RegistrarAsync(_nuevoUsuario);
+        if (success)
+        {
+            Snackbar.Add("Usuario creado exitosamente.", Severity.Success);
+            _showCrearDialog = false;
+            await CargarDatos();
+        }
+        else
+        {
+            Snackbar.Add(error ?? "Error al crear usuario.", Severity.Error);
+        }
+        _saving = false;
+    }
+
+    // ── Editar ──
+    void OpenEditarDialog(UsuarioListModel usuario)
+    {
+        _editarUsuarioId = usuario.Id;
+        _editarUsuario = new ActualizarUsuarioModel
+        {
+            NombreCompleto = usuario.NombreCompleto,
+            Email = usuario.Email,
+            Activo = usuario.Activo,
+            Roles = usuario.Roles,
+            EmpleadoId = usuario.EmpleadoId
+        };
+        _selectedRoles = usuario.Roles;
+        _showEditarDialog = true;
+    }
+
+    async Task ActualizarUsuario()
+    {
+        _saving = true;
+        _editarUsuario.Roles = _selectedRoles.ToList();
+        var (success, error) = await UsuariosService.ActualizarAsync(_editarUsuarioId, _editarUsuario);
+        if (success)
+        {
+            Snackbar.Add("Usuario actualizado exitosamente.", Severity.Success);
+            _showEditarDialog = false;
+            await CargarDatos();
+        }
+        else
+        {
+            Snackbar.Add(error ?? "Error al actualizar.", Severity.Error);
+        }
+        _saving = false;
+    }
+
+    // ── Cambiar Contraseña ──
+    void OpenCambiarPasswordDialog(UsuarioListModel usuario)
+    {
+        _passwordUserId = usuario.Id;
+        _passwordUserName = usuario.NombreCompleto;
+        _cambiarPassword = new CambiarPasswordModel();
+        _showPasswordDialog = true;
+    }
+
+    async Task CambiarPassword()
+    {
+        _saving = true;
+        var (success, error) = await UsuariosService.CambiarPasswordAsync(_passwordUserId, _cambiarPassword);
+        if (success)
+        {
+            Snackbar.Add("Contraseña actualizada exitosamente.", Severity.Success);
+            _showPasswordDialog = false;
+        }
+        else
+        {
+            Snackbar.Add(error ?? "Error al cambiar contraseña.", Severity.Error);
+        }
+        _saving = false;
+    }
+
+    void OnSelectedRolesChanged(IEnumerable<string> values)
+    {
+        _selectedRoles = values.ToList().AsReadOnly();
+    }
+
+    // ── Desactivar ──
+    async Task DesactivarUsuario(UsuarioListModel usuario)
+    {
+        _confirmUsuario = usuario;
+        _showConfirmDialog = true;
+    }
+
+    async Task ConfirmarDesactivacion()
+    {
+        if (_confirmUsuario == null) return;
+        _showConfirmDialog = false;
+
+        var (success, error) = await UsuariosService.DesactivarAsync(_confirmUsuario.Id);
+        if (success)
+        {
+            Snackbar.Add("Usuario desactivado.", Severity.Warning);
+            await CargarDatos();
+        }
+        else
+        {
+            Snackbar.Add(error ?? "Error al desactivar.", Severity.Error);
+        }
+        _confirmUsuario = null;
+    }
+
+    // ── Helpers ──
+    static Color GetRolColor(string rol) => rol switch
+    {
+        "Administrador" => Color.Error,
+        "GestorPrestamos" => Color.Primary,
+        "Supervisor" => Color.Warning,
+        "Consultor" => Color.Info,
+        _ => Color.Default
+    };
+
+    static string GetRolDisplay(string rol) => rol switch
+    {
+        "GestorPrestamos" => "Gestor de Préstamos",
+        _ => rol
+    };
+}

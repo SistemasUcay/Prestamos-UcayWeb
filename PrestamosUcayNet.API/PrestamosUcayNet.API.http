@@ -1,0 +1,40 @@
+@PrestamosUcayNet.API_HostAddress = http://localhost:5158
+@token = 
+
+### Login
+POST {{PrestamosUcayNet.API_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@ucaynet.com",
+  "password": "Admin@123456"
+}
+
+### Solicitudes pendientes
+GET {{PrestamosUcayNet.API_HostAddress}}/api/solicitudes/pendientes
+Authorization: Bearer {{token}}
+
+### Solicitudes aprobadas
+GET {{PrestamosUcayNet.API_HostAddress}}/api/solicitudes/aprobadas
+Authorization: Bearer {{token}}
+
+### Evaluar capacidad de pago
+POST {{PrestamosUcayNet.API_HostAddress}}/api/solicitudes/evaluar-capacidad
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "empleadoId": 1,
+  "condicionCreditoId": 1,
+  "montoSolicitado": 50000,
+  "plazoMeses": 24,
+  "fondeadoraId": 1
+}
+
+### Condiciones de crédito activas
+GET {{PrestamosUcayNet.API_HostAddress}}/api/catalogos/condiciones-credito
+Authorization: Bearer {{token}}
+
+### Préstamos activos
+GET {{PrestamosUcayNet.API_HostAddress}}/api/prestamos/activos
+Authorization: Bearer {{token}}

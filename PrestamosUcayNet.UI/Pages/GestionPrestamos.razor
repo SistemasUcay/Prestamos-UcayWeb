@@ -1,0 +1,493 @@
+@page "/gestion-prestamos"
+@using Microsoft.AspNetCore.Authorization
+@using PrestamosUcayNet.Application.DTOs
+@using PrestamosUcayNet.UI.Services
+@using MudBlazor
+@attribute [Authorize(Roles = "Administrador,Gerente,Contador")]
+@inject SolicitudesApiService SolicitudesApi
+@inject PrestamosApiService PrestamosApi
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+
+<PageTitle>Gestión de Préstamos — Préstamos UcayNet</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-1">
+    <MudIcon Icon="@Icons.Material.Filled.Payments" Class="mr-2" Style="vertical-align: middle;" />
+    Administración de Cartera de Préstamos
+</MudText>
+<MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mb-4">
+    Gestión completa de préstamos, activación, pagos y seguimiento
+</MudText>
+
+<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6" @bind-ActivePanelIndex="_activeTab">
+
+    @* ── TAB 1: Pendientes de Entrega ── *@
+    <MudTabPanel Text="Pendientes de Entrega" Icon="@Icons.Material.Filled.PendingActions" BadgeData="@_aprobadas.Count" BadgeColor="Color.Warning">
+        @if (_loadingAprobados)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+        }
+        else if (_aprobadas.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Class="my-4">No hay solicitudes aprobadas pendientes de entrega.</MudAlert>
+        }
+        else
+        {
+            <MudDataGrid T="SolicitudDetalleDto" Items="@_aprobadas" Hover="true" Bordered="true" Striped="true" Dense="true">
+                <Columns>
+                    <PropertyColumn Property="x => x.FechaSolicitud" Title="Fecha Aprobación" Format="dd/MM/yyyy" />
+                    <PropertyColumn Property="x => x.NombreEmpleado" Title="Empleado" />
+                    <PropertyColumn Property="x => x.NombreFondeadora" Title="Fondeadora" />
+                    <PropertyColumn Property="x => x.MontoSolicitado" Title="Monto a Entregar" Format="C2" />
+                    <PropertyColumn Property="x => x.PlazoMeses" Title="Plazo (meses)" />
+                    <TemplateColumn Title="Acciones" CellStyle="width: 160px;">
+                        <CellTemplate>
+                            <MudButton Size="@Size.Small" Variant="@Variant.Filled" Color="@Color.Success"
+                                       StartIcon="@Icons.Material.Filled.CheckCircle"
+                                       OnClick="@(() => AbrirActivacion(context.Item))">
+                                Activar
+                            </MudButton>
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+            </MudDataGrid>
+        }
+    </MudTabPanel>
+
+    @* ── TAB 2: Todos los Préstamos ── *@
+    <MudTabPanel Text="Préstamos" Icon="@Icons.Material.Filled.AccountBalance" BadgeData="@_prestamos.Count" BadgeColor="Color.Primary">
+        <MudPaper Elevation="0" Class="pa-4 mb-4" Style="border-radius: 12px; background: var(--mud-palette-surface);">
+            <MudGrid Spacing="2" Justify="Justify.SpaceBetween" Class="align-center">
+                <MudItem xs="12" md="4">
+                    <MudTextField @bind-Value="_searchString" Placeholder="Buscar por empleado, folio, fondeadora..."
+                        Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" />
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudSelect T="string" Label="Filtrar por Estado" @bind-Value="_filtroEstado"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                        SelectedValuesChanged="FiltrarPorEstado">
+                        <MudSelectItem T="string" Value="@("")">Todos</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("A")">Activo</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("P")">Pagado</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("L")">Liquidado</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("C")">Cancelado</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("S")">Suspendido</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="5" Class="d-flex justify-end gap-2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Success"
+                               StartIcon="@Icons.Material.Filled.AddCircle"
+                               OnClick="@(() => Navigation.NavigateTo("/captura-prestamo"))"
+                               Style="text-transform: none;">
+                               Nuevo Préstamo
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                        StartIcon="@Icons.Material.Filled.Refresh"
+                        OnClick="CargarPrestamos" Style="text-transform: none;">
+                        Actualizar
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        @if (_loadingPrestamos)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+        }
+        else
+        {
+            <MudDataGrid T="PrestamoListDto" Items="@_prestamos" Hover="true" Bordered="true"
+                         Striped="true" Dense="true" QuickFilter="@_quickFilter"
+                         RowsPerPage="15" Style="border-radius: 8px;">
+                <Columns>
+                    <PropertyColumn Property="x => x.Folio" Title="Folio" />
+                    <PropertyColumn Property="x => x.NombreEmpleado" Title="Empleado" />
+                    <PropertyColumn Property="x => x.NombreFondeadora" Title="Fondeadora" />
+                    <PropertyColumn Property="x => x.TipoPrestamoDescripcion" Title="Tipo" />
+                    <PropertyColumn Property="x => x.MontoAprobado" Title="Monto" Format="C2" />
+                    <PropertyColumn Property="x => x.PlazoMeses" Title="Plazo" />
+                    <PropertyColumn Property="x => x.ImporteCuotas" Title="Cuota" Format="C2" />
+                    <PropertyColumn Property="x => x.SaldoPendiente" Title="Saldo" Format="C2" />
+                    <TemplateColumn Title="Estado" CellStyle="width: 120px;">
+                        <CellTemplate>
+                            <MudChip T="string" Size="Size.Small" Color="@ObtenerColorEstado(context.Item.Estado)">
+                                @context.Item.EstadoDescripcion
+                            </MudChip>
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <PropertyColumn Property="x => x.FechaAprobado" Title="F. Aprobado" Format="dd/MM/yyyy" />
+                    <TemplateColumn Title="Acciones" CellStyle="width: 160px;">
+                        <CellTemplate>
+                            <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
+                                           OnClick="@(() => VerDetalle(context.Item.PrestamoId))" Title="Ver detalle" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => AbrirEdicion(context.Item))" Title="Editar" />
+                            @if (context.Item.Estado == "A")
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small"
+                                               OnClick="@(() => ConfirmarCancelacion(context.Item))" Title="Cancelar préstamo" />
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+                <PagerContent>
+                    <MudDataGridPager T="PrestamoListDto" />
+                </PagerContent>
+            </MudDataGrid>
+        }
+    </MudTabPanel>
+</MudTabs>
+
+@* ── Diálogo: Activar Préstamo ── *@
+<MudDialog @bind-Visible="_activacionVisible" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="mr-2" Style="vertical-align: middle;" Color="Color.Success" />
+            Activar Préstamo — Solicitud #@_selectedSolicitud?.Id
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_selectedSolicitud is not null)
+        {
+            <MudAlert Severity="Severity.Info" Class="mb-4">
+                <b>@_selectedSolicitud.NombreEmpleado</b> — Monto: <b>@_selectedSolicitud.MontoSolicitado.ToString("C2")</b> — Plazo: <b>@_selectedSolicitud.PlazoMeses meses</b>
+            </MudAlert>
+        }
+        <MudForm @ref="_formActivacion">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" md="6">
+                    <MudDatePicker Label="Fecha de Entrega" @bind-Date="_fechaEntrega" Required="true"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudSelect T="string" Label="Método de Entrega" @bind-Value="_metodoEntrega" Required="true"
+                               Variant="Variant.Outlined" Margin="Margin.Dense">
+                        <MudSelectItem Value="@("Transferencia")">Transferencia Bancaria</MudSelectItem>
+                        <MudSelectItem Value="@("Cheque")">Cheque</MudSelectItem>
+                        <MudSelectItem Value="@("Efectivo")">Efectivo</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField T="string" Label="Referencia / No. Operación" @bind-Value="_referencia" Required="true"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField T="string" Label="Folio Interno (Opcional)" @bind-Value="_folio"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _activacionVisible = false)" Variant="Variant.Text">Cancelar</MudButton>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="ConfirmarActivacion"
+                   Disabled="@_saving" StartIcon="@(_saving ? null : Icons.Material.Filled.CheckCircle)">
+            @if (_saving)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                <MudText Class="ms-2">Procesando...</MudText>
+            }
+            else
+            {
+                <MudText>Confirmar Entrega</MudText>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Diálogo: Editar Préstamo ── *@
+<MudDialog @bind-Visible="_edicionVisible" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Edit" Class="mr-2" Style="vertical-align: middle;" Color="Color.Primary" />
+            Editar Préstamo #@_editModel.PrestamoId
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_formEdicion">
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudTextField T="string" Label="Destino del Crédito" @bind-Value="_editModel.DestinoCredito"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField T="string" Label="Método de Entrega" @bind-Value="_editModel.MetodoEntrega"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField T="string" Label="Referencia Bancaria" @bind-Value="_editModel.ReferenciaBancaria"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField T="string" Label="Folio" @bind-Value="_editModel.Folio"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _edicionVisible = false)" Variant="Variant.Text">Cancelar</MudButton>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="GuardarEdicion"
+                   Disabled="@_saving" StartIcon="@(_saving ? null : Icons.Material.Filled.Save)">
+            @if (_saving)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                <MudText Class="ms-2">Guardando...</MudText>
+            }
+            else
+            {
+                <MudText>Guardar</MudText>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@* ── Diálogo: Confirmar Cancelación ── *@
+<MudDialog @bind-Visible="_cancelacionVisible" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Warning" Class="mr-2" Style="vertical-align: middle;" Color="Color.Error" />
+            Cancelar Préstamo
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudAlert Severity="Severity.Warning" Class="mb-4">
+            ¿Está seguro de cancelar el préstamo <b>#@_cancelPrestamoId</b> de <b>@_cancelNombreEmpleado</b>?
+            Esta acción no se puede deshacer.
+        </MudAlert>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _cancelacionVisible = false)" Variant="Variant.Text">No, mantener</MudButton>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="EjecutarCancelacion"
+                   StartIcon="@Icons.Material.Filled.Cancel">Sí, cancelar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    // ── Data ──
+    private List<SolicitudDetalleDto> _aprobadas = new();
+    private List<PrestamoListDto> _prestamos = new();
+    private bool _loadingAprobados = true;
+    private bool _loadingPrestamos = true;
+    private bool _saving;
+    private int _activeTab;
+
+    // ── Filtros ──
+    private string _searchString = "";
+    private string _filtroEstado = "";
+
+    // ── Activación ──
+    private bool _activacionVisible;
+    private SolicitudDetalleDto? _selectedSolicitud;
+    private MudForm _formActivacion = null!;
+    private DateTime? _fechaEntrega = DateTime.Today;
+    private string _metodoEntrega = "Transferencia";
+    private string _referencia = "";
+    private string _folio = "";
+
+    // ── Edición ──
+    private bool _edicionVisible;
+    private PrestamoUpdateDto _editModel = new();
+    private MudForm _formEdicion = null!;
+
+    // ── Cancelación ──
+    private bool _cancelacionVisible;
+    private int _cancelPrestamoId;
+    private string _cancelNombreEmpleado = "";
+
+    private DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(CargarAprobadas(), CargarPrestamos());
+    }
+
+    private async Task CargarAprobadas()
+    {
+        _loadingAprobados = true;
+        try
+        {
+            _aprobadas = await SolicitudesApi.GetAprobadasAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar solicitudes aprobadas: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loadingAprobados = false;
+        }
+    }
+
+    private async Task CargarPrestamos()
+    {
+        _loadingPrestamos = true;
+        try
+        {
+            _prestamos = string.IsNullOrEmpty(_filtroEstado)
+                ? await PrestamosApi.GetTodosAsync()
+                : await PrestamosApi.GetPorEstadoAsync(_filtroEstado);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar préstamos: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loadingPrestamos = false;
+        }
+    }
+
+    private async Task FiltrarPorEstado()
+    {
+        await CargarPrestamos();
+    }
+
+    private Func<PrestamoListDto, bool> _quickFilter => x =>
+    {
+        if (string.IsNullOrWhiteSpace(_searchString)) return true;
+        if (x.NombreEmpleado.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (x.NombreFondeadora.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (x.Folio?.Contains(_searchString, StringComparison.OrdinalIgnoreCase) == true) return true;
+        if (x.TipoPrestamoDescripcion.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    };
+
+    // ── Activación ──
+
+    private void AbrirActivacion(SolicitudDetalleDto item)
+    {
+        _selectedSolicitud = item;
+        _fechaEntrega = DateTime.Today;
+        _metodoEntrega = "Transferencia";
+        _referencia = "";
+        _folio = "";
+        _activacionVisible = true;
+    }
+
+    private async Task ConfirmarActivacion()
+    {
+        await _formActivacion.Validate();
+        if (!_formActivacion.IsValid) return;
+
+        _saving = true;
+        try
+        {
+            var result = await PrestamosApi.ActivarAsync(new ActivarPrestamoDto
+            {
+                SolicitudId = _selectedSolicitud!.Id,
+                FechaEntrega = _fechaEntrega!.Value,
+                MetodoEntrega = _metodoEntrega,
+                Referencia = _referencia,
+                Folio = _folio
+            });
+
+            if (result)
+            {
+                Snackbar.Add("¡Préstamo activado y tabla de amortización generada!", Severity.Success);
+                _activacionVisible = false;
+                await Task.WhenAll(CargarAprobadas(), CargarPrestamos());
+            }
+            else
+            {
+                Snackbar.Add("Error al activar préstamo.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    // ── Edición ──
+
+    private void AbrirEdicion(PrestamoListDto item)
+    {
+        _editModel = new PrestamoUpdateDto
+        {
+            PrestamoId = item.PrestamoId,
+            Folio = item.Folio
+        };
+        _edicionVisible = true;
+    }
+
+    private async Task GuardarEdicion()
+    {
+        _saving = true;
+        try
+        {
+            var result = await PrestamosApi.ActualizarAsync(_editModel);
+            if (result)
+            {
+                Snackbar.Add("Préstamo actualizado correctamente.", Severity.Success);
+                _edicionVisible = false;
+                await CargarPrestamos();
+            }
+            else
+            {
+                Snackbar.Add("Error al actualizar el préstamo.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    // ── Cancelación ──
+
+    private async Task ConfirmarCancelacion(PrestamoListDto item)
+    {
+        _cancelPrestamoId = item.PrestamoId;
+        _cancelNombreEmpleado = item.NombreEmpleado;
+        _cancelacionVisible = true;
+    }
+
+    private async Task EjecutarCancelacion()
+    {
+        _cancelacionVisible = false;
+
+        var result = await PrestamosApi.CancelarAsync(_cancelPrestamoId);
+        if (result)
+        {
+            Snackbar.Add("Préstamo cancelado.", Severity.Warning);
+            await CargarPrestamos();
+        }
+        else
+        {
+            Snackbar.Add("No se pudo cancelar el préstamo.", Severity.Error);
+        }
+    }
+
+    // ── Navegación ──
+
+    private void VerDetalle(int id)
+    {
+        Navigation.NavigateTo($"/prestamos/{id}");
+    }
+
+    // ── Helpers ──
+
+    private static Color ObtenerColorEstado(string estado) => estado switch
+    {
+        "A" => Color.Success,
+        "P" => Color.Info,
+        "L" => Color.Tertiary,
+        "C" => Color.Error,
+        "S" => Color.Warning,
+        _ => Color.Default
+    };
+}

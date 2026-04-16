@@ -1,0 +1,656 @@
+@page "/captura-prestamo"
+@page "/captura-prestamo/{PrestamoEditId:int}"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Administrador,Gerente,Contador")]
+@using PrestamosUcayNet.Application.DTOs
+@inject PrestamosApiService PrestamosApi
+@inject EmpleadosApiService EmpleadosApi
+@inject EmpresasApiService EmpresasApi
+@inject CatalogosApiService CatalogosApi
+@inject SolicitudesApiService SolicitudesApi
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Solicitud de Préstamos — Préstamos UcayNet</PageTitle>
+
+@* ── Barra de Título ── *@
+<MudPaper Elevation="1" Class="pa-0.5 mb-2" Style="background: var(--mud-palette-primary); color: white; border-radius: 8px 8px 0 0;">
+    <div class="d-flex align-center justify-space-between">
+        <MudText Typo="Typo.h6" Style="color: white;">
+            <MudIcon Icon="@Icons.Material.Filled.RequestPage" Class="mr-1" Style="vertical-align: ;" />
+            Solicitud de Préstamos
+        </MudText>
+        <div class="d-flex gap-2">
+            <MudIconButton Icon="@Icons.Material.Filled.Save" Color="Color.Inherit" Title="Guardar"
+                           OnClick="GuardarPrestamo" Disabled="@(_saving || !_formValid)" />
+            <MudIconButton Icon="@Icons.Material.Filled.Refresh" Color="Color.Inherit" Title="Limpiar"
+                           OnClick="LimpiarFormulario" />
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Color="Color.Inherit" Title="Regresar a Solicitudes"
+                           OnClick="@(() => Navigation.NavigateTo("/gestion-solicitudes"))" />
+        </div>
+    </div>
+</MudPaper>
+
+<MudForm @ref="_form" @bind-IsValid="_formValid">
+    @* ── ENCABEZADO ── *@
+    <MudPaper Elevation="1" Class="pa-4 mb-2" Style="border-radius: 0;">
+        <MudGrid Spacing="2">
+            @* Fila 1: Número Solicitud, Fuente de Fondeo, Fecha *@
+            <MudItem xs="12" md="2">
+                <MudTextField T="string" Label="Número Solicitud" Value="@(_prestamoId > 0 ? _prestamoId.ToString() : "Nuevo")"
+                              ReadOnly="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Tag" />
+            </MudItem>
+            <MudItem xs="12" md="7">
+                <MudSelect T="int" Label="Fuente de Fondeo" @bind-Value="_model.FondeadoraId" Required="true"
+                           Variant="Variant.Outlined" Margin="Margin.Dense" AnchorOrigin="Origin.BottomCenter">
+                    @foreach (var emp in _fondeadoras)
+                    {
+                        <MudSelectItem Value="@emp.NumEmpresa">@emp.RazonSocial</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudDatePicker Label="Fecha de la Solicitud" @bind-Date="_fechaSolicitud" Editable="true"
+                               Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="true"
+                               Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.CalendarToday" />
+            </MudItem>
+
+            @* Fila 2: Empleado, Nombre, Sueldo *@
+            <MudItem xs="12" md="2">
+                <MudNumericField T="int" Label="Empleado" @bind-Value="_empleadoIdBuscar"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense"
+                                 Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search"
+                                 OnAdornmentClick="BuscarEmpleado"
+                                 OnKeyDown="OnEmpleadoKeyDown" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                @if (_empleadoSeleccionado is not null)
+                {
+                    <MudText Typo="Typo.h6" Color="Color.Primary" Class="mt-2" Style="font-weight: bold;">
+                        @_empleadoSeleccionado.NombreCompleto
+                    </MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-3">
+                        Ingrese el ID del empleado y presione Enter o haga clic en la lupa
+                    </MudText>
+                }
+            </MudItem>
+            <MudItem xs="12" md="2">
+                <MudText Typo="Typo.caption">Sueldo Laboral</MudText>
+                <MudText Typo="Typo.h6" Color="Color.Warning" Style="font-weight: bold;">
+                    @((_empleadoSeleccionado?.SueldoLaboral ?? 0).ToString("C2"))
+                </MudText>
+            </MudItem>
+            <MudItem xs="12" md="2" />
+
+            @* Fila 3: Tipo de Préstamo, Observaciones *@
+            <MudItem xs="12" md="3">
+                <MudSelect T="int" Label="Tipo de Préstamo" @bind-Value="_model.TipoPrestamoId" Required="true"
+                           Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var tp in _tiposPrestamo)
+                    {
+                        <MudSelectItem Value="@tp.TipoPrestamoId">@tp.Descripcion</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            
+            <MudItem xs="12" md="5">
+                <MudTextField T="string" Label="Observaciones / Motivo" @bind-Value="_model.DestinoCredito"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    @* ── CUERPO: 3 Paneles ── *@
+    <MudGrid Spacing="0">
+        @* ── Panel Izquierdo: Datos del Préstamo ── *@
+        <MudItem xs="12" md="3">
+            <MudPaper Elevation="1" Class="pa-4" Style="min-height: 480px; border-radius: 0;">
+                <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mb-4" Style="font-weight: bold; border-bottom: 2px solid var(--mud-palette-primary); padding-bottom: 4px;">
+                    <MudIcon Icon="@Icons.Material.Filled.Description" Size="Size.Small" Class="mr-1" Style="vertical-align: middle;" />
+                    Datos del Préstamo
+                </MudText>
+
+                <MudNumericField T="decimal" Label="Importe Solicitado" @bind-Value="_model.MontoAprobado"
+                                 Format="N2" Min="0.01m" Required="true"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
+                                 Adornment="Adornment.Start" AdornmentText="$"
+                                 DebounceInterval="500" OnDebounceIntervalElapsed="SimularAmortizacion" />
+
+                <MudNumericField T="decimal" Label="Tasa de Interés Anual" @bind-Value="_tasaInteresAnual"
+                                 Format="N2" Min="0.01m" Required="true"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
+                                 Adornment="Adornment.Start" AdornmentText="%"
+                                 DebounceInterval="500" OnDebounceIntervalElapsed="SimularAmortizacion" />
+
+                <MudNumericField T="int" Label="Plazo (Meses)" @bind-Value="_model.PlazoMeses"
+                                 Min="1" Max="360" Required="true"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
+                                 DebounceInterval="500" OnDebounceIntervalElapsed="SimularAmortizacion" />
+
+                <MudDatePicker Label="Entrega del Préstamo" Date="_fechaEntrega" Editable="true"
+                               Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
+                               Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.CalendarToday"
+                               DateChanged="OnFechaEntregaChanged" />
+
+                <MudSelect T="string" Label="Vencimiento" @bind-Value="_tipoVencimiento"
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
+                    <MudSelectItem Value="@("auto")">Calculado Automático</MudSelectItem>
+                    <MudSelectItem Value="@("manual")">Asignar Fecha</MudSelectItem>
+                </MudSelect>
+
+                @if (_tipoVencimiento == "manual")
+                {
+                    <MudDatePicker Label="Fecha Vencimiento" @bind-Date="_fechaVencimientoManual" Editable="true"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+                }
+
+                <MudDatePicker Label="Final de Descuento" Date="@_fechaFinalDescuento" ReadOnly="true"
+                               Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
+                               Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.CalendarToday" />
+
+                <MudSelect T="int" Label="Frecuencia de Pago" Value="_model.TipoPagoId"
+                           ValueChanged="OnFrecuenciaPagoChanged" Required="true"
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
+                    @foreach (var tp in _tiposPago)
+                    {
+                        <MudSelectItem Value="@tp.TipoPagoId">@tp.Descripcion</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <div class="d-flex gap-2 mt-4">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.Calculate" OnClick="SimularAmortizacion"
+                               Disabled="@(!PuedeSimular)">
+                        Calcular
+                    </MudButton>
+                </div>
+            </MudPaper>
+        </MudItem>
+
+        @* ── Panel Central: Tabla de Amortización ── *@
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="1" Class="pa-4" Style="min-height: 480px; border-radius: 0;">
+                <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mb-4" Style="font-weight: bold; border-bottom: 2px solid var(--mud-palette-primary); padding-bottom: 4px;">
+                    <MudIcon Icon="@Icons.Material.Filled.TableChart" Size="Size.Small" Class="mr-1" Style="vertical-align: middle;" />
+                    Amortizaciones del Préstamo
+                </MudText>
+
+                @if (_simulando)
+                {
+                    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-4" />
+                }
+                else if (_preview is null || _preview.TablaAmortizacion.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Class="my-4">
+                        Complete los datos del préstamo y presione <b>Calcular</b> para generar la tabla de amortización.
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudTable Items="@_preview.TablaAmortizacion" Dense="true" Hover="true" Bordered="true"
+                              Striped="true" FixedHeader="true" Height="400px" Style="font-size: 0.85rem;">
+                        <HeaderContent>
+                            <MudTh Style="width: 60px; text-align: center;"># PAGO</MudTh>
+                            <MudTh>FECHA PAGO</MudTh>
+                            <MudTh Style="text-align: right;">CUOTA</MudTh>
+                            <MudTh Style="text-align: right;">INTERÉS</MudTh>
+                            <MudTh Style="text-align: right;">CAPITAL</MudTh>
+                            <MudTh Style="text-align: right;">SALDO DE CAPITAL</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd Style="text-align: center;">@context.NumeroPago</MudTd>
+                            <MudTd>@context.FechaPago.ToString("dd/MM/yyyy")</MudTd>
+                            <MudTd Style="text-align: right;">@context.ImportePago.ToString("N2")</MudTd>
+                            <MudTd Style="text-align: right;">@context.ImporteInteres.ToString("N2")</MudTd>
+                            <MudTd Style="text-align: right;">@context.ImporteCapital.ToString("N2")</MudTd>
+                            <MudTd Style="text-align: right;">@context.SaldoFinal.ToString("N2")</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudPaper>
+        </MudItem>
+
+        @* ── Panel Derecho: Resumen del Préstamo ── *@
+        <MudItem xs="12" md="3">
+            <MudPaper Elevation="1" Class="pa-4" Style="min-height: 480px; border-radius: 0;">
+                <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mb-4" Style="font-weight: bold; border-bottom: 2px solid var(--mud-palette-primary); padding-bottom: 4px;">
+                    <MudIcon Icon="@Icons.Material.Filled.Summarize" Size="Size.Small" Class="mr-1" Style="vertical-align: middle;" />
+                    Resumen del Préstamo
+                </MudText>
+
+                @if (_preview is not null)
+                {
+                    <MudSimpleTable Dense="true" Hover="true" Bordered="false" Style="border: none;">
+                        <tbody>
+                            <tr>
+                                <td><MudText Typo="Typo.body2">Pagos Adicionales a Capital</MudText></td>
+                                <td style="text-align: right;"><MudText Typo="Typo.body2" Style="font-weight: bold;">@_preview.PagosAdicionalesCapital.ToString("N2")</MudText></td>
+                            </tr>
+                            <tr>
+                                <td><MudText Typo="Typo.body2">Capital Amortizable</MudText></td>
+                                <td style="text-align: right;"><MudText Typo="Typo.body2" Style="font-weight: bold;">@_preview.CapitalAmortizable.ToString("N2")</MudText></td>
+                            </tr>
+                            <tr>
+                                <td><MudText Typo="Typo.body2">Total de Intereses</MudText></td>
+                                <td style="text-align: right;"><MudText Typo="Typo.body2" Style="font-weight: bold;">@_preview.TotalIntereses.ToString("N2")</MudText></td>
+                            </tr>
+                            <tr style="border-top: 2px solid var(--mud-palette-primary);">
+                                <td><MudText Typo="Typo.body1" Style="font-weight: bold;">Total a Pagar</MudText></td>
+                                <td style="text-align: right;"><MudText Typo="Typo.body1" Color="Color.Primary" Style="font-weight: bold;">@_preview.TotalPagar.ToString("N2")</MudText></td>
+                            </tr>
+                        </tbody>
+                    </MudSimpleTable>
+
+                    <MudDivider Class="my-4" />
+
+                    <MudSimpleTable Dense="true" Hover="true" Bordered="false" Style="border: none;">
+                        <tbody>
+                            <tr>
+                                <td><MudText Typo="Typo.body2">Cuota por Período</MudText></td>
+                                <td style="text-align: right;"><MudText Typo="Typo.body2" Style="font-weight: bold;">@_preview.CuotaMensual.ToString("N2")</MudText></td>
+                            </tr>
+                            <tr>
+                                <td><MudText Typo="Typo.body2">Tasa por Período</MudText></td>
+                                <td style="text-align: right;"><MudText Typo="Typo.body2" Style="font-weight: bold;">%@_preview.TasaPorPeriodo.ToString("N4")</MudText></td>
+                            </tr>
+                            <tr>
+                                <td><MudText Typo="Typo.body2">Número de Pagos</MudText></td>
+                                <td style="text-align: right;"><MudText Typo="Typo.body2" Style="font-weight: bold;">@_preview.NumeroPagos</MudText></td>
+                            </tr>
+                            <tr>
+                                <td><MudText Typo="Typo.body2">Días de Plazo</MudText></td>
+                                <td style="text-align: right;"><MudText Typo="Typo.body2" Style="font-weight: bold;">@_preview.DiasPlayzo</MudText></td>
+                            </tr>
+                            <tr>
+                                <td><MudText Typo="Typo.body2">Fecha del último Pago</MudText></td>
+                                <td style="text-align: right;"><MudText Typo="Typo.body2" Style="font-weight: bold;">@_preview.FechaUltimoPago.ToString("dd/MM/yyyy")</MudText></td>
+                            </tr>
+                        </tbody>
+                    </MudSimpleTable>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Normal" Variant="Variant.Text" Class="mt-4">
+                        El resumen se mostrará después de calcular la amortización.
+                    </MudAlert>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudForm>
+
+@* ── Diálogo: Buscar Empleado ── *@
+<MudDialog @bind-Visible="_buscarEmpleadoVisible" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.PersonSearch" Class="mr-2" Style="vertical-align: middle;" />
+            Buscar Empleado
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField T="string" @bind-Value="_busquedaEmpleadoTexto" Placeholder="Buscar por nombre, nómina o RFC..."
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" Class="mb-4" />
+
+        <MudTable Items="@_empleadosFiltrados" Dense="true" Hover="true" Bordered="true"
+                  OnRowClick="SeleccionarEmpleadoDesdeTabla" T="EmpleadoListDto" Style="cursor: pointer;">
+            <HeaderContent>
+                <MudTh>ID</MudTh>
+                <MudTh>Nómina</MudTh>
+                <MudTh>Nombre</MudTh>
+                <MudTh>RFC</MudTh>
+                <MudTh>Empresa</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.EmpleadoId</MudTd>
+                <MudTd>@context.NumeroNomina</MudTd>
+                <MudTd>@context.NombreCompleto</MudTd>
+                <MudTd>@context.Rfc</MudTd>
+                <MudTd>@context.EmpresaNombre</MudTd>
+            </RowTemplate>
+        </MudTable>
+    </DialogContent>
+</MudDialog>
+
+@* ── Diálogo: Confirmar Guardado ── *@
+<MudDialog @bind-Visible="_confirmarGuardadoVisible" Options="@(new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true })">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Class="mr-2" Style="vertical-align: middle;" />
+            Confirmar Solicitud
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudAlert Severity="Severity.Info" Class="mb-4">
+            ¿Está seguro de registrar la solicitud con los siguientes datos?
+        </MudAlert>
+        <MudSimpleTable Dense="true">
+            <tbody>
+                <tr><td>Empleado</td><td><b>@(_empleadoSeleccionado?.NombreCompleto ?? "—")</b></td></tr>
+                <tr><td>Monto</td><td><b>@_model.MontoAprobado.ToString("C2")</b></td></tr>
+                <tr><td>Plazo</td><td><b>@_model.PlazoMeses meses</b></td></tr>
+                <tr><td>Tasa Anual</td><td><b>@_tasaInteresAnual.ToString("N2")%</b></td></tr>
+                <tr><td>Cuota por Período</td><td><b>@(_preview?.CuotaMensual.ToString("C2") ?? "—")</b></td></tr>
+                <tr><td>Número de Pagos</td><td><b>@(_preview?.NumeroPagos.ToString() ?? "—")</b></td></tr>
+                <tr><td>Total a Pagar</td><td><b>@(_preview?.TotalPagar.ToString("C2") ?? "—")</b></td></tr>
+            </tbody>
+        </MudSimpleTable>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _confirmarGuardadoVisible = false)" Variant="Variant.Text">Cancelar</MudButton>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="EjecutarGuardar"
+                   Disabled="@_saving" StartIcon="@(_saving ? null : Icons.Material.Filled.Save)">
+            @if (_saving)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                <MudText Class="ms-2">Guardando...</MudText>
+            }
+            else
+            {
+                <MudText>Confirmar y Guardar</MudText>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public int? PrestamoEditId { get; set; }
+
+    // ── Modelo ──
+    private PrestamoCreateDto _model = new()
+    {
+        DestinoCredito = string.Empty,
+        FechaEntrega = DateTime.Today,
+        PlazoMeses = 1,
+        MontoAprobado = 0
+    };
+
+    private decimal _tasaInteresAnual = 60;
+    private DateTime? _fechaSolicitud = DateTime.Today;
+    private DateTime? _fechaEntrega = DateTime.Today;
+    private DateTime? _fechaFinalDescuento;
+    private DateTime? _fechaVencimientoManual;
+    private string _tipoVencimiento = "auto";
+    private int _prestamoId;
+
+    // ── Catálogos ──
+    private List<EmpresaListDto> _fondeadoras = [];
+    private List<TipoPrestamoDto> _tiposPrestamo = [];
+    private List<TipoPagoDto> _tiposPago = [];
+    private List<CondicionCreditoDto> _condicionesCredito = [];
+    private int _condicionCreditoId;
+
+    private IEnumerable<CondicionCreditoDto> _condicionesCreditoFiltradas =>
+        _model.FondeadoraId > 0
+            ? _condicionesCredito.Where(c => c.FondeadoraId == _model.FondeadoraId)
+            : _condicionesCredito;
+
+    // ── Empleado ──
+    private int _empleadoIdBuscar;
+    private EmpleadoDetailDto? _empleadoSeleccionado;
+    private bool _buscarEmpleadoVisible;
+    private string _busquedaEmpleadoTexto = "";
+    private List<EmpleadoListDto> _todosEmpleados = [];
+
+    private IEnumerable<EmpleadoListDto> _empleadosFiltrados =>
+        string.IsNullOrWhiteSpace(_busquedaEmpleadoTexto)
+            ? _todosEmpleados
+            : _todosEmpleados.Where(e =>
+                e.NombreCompleto.Contains(_busquedaEmpleadoTexto, StringComparison.OrdinalIgnoreCase) ||
+                e.Rfc.Contains(_busquedaEmpleadoTexto, StringComparison.OrdinalIgnoreCase) ||
+                e.NumeroNomina.ToString().Contains(_busquedaEmpleadoTexto));
+
+    // ── Preview ──
+    private AmortizacionPreviewResultDto? _preview;
+    private bool _simulando;
+
+    // ── Form ──
+    private MudForm _form = null!;
+    private bool _formValid;
+    private bool _saving;
+    private bool _confirmarGuardadoVisible;
+
+    private bool PuedeSimular => _model.MontoAprobado > 0 && _model.PlazoMeses > 0 && _tasaInteresAnual > 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var empresasTask = EmpresasApi.GetEmpresasAsync();
+            var tiposPrestamoTask = CatalogosApi.GetTiposPrestamoAsync();
+            var tiposPagoTask = CatalogosApi.GetTiposPagoAsync();
+            var empleadosTask = EmpleadosApi.GetEmpleadosAsync();
+            var condicionesTask = CatalogosApi.GetCondicionesCreditoAsync();
+
+            await Task.WhenAll(empresasTask, tiposPrestamoTask, tiposPagoTask, empleadosTask, condicionesTask);
+
+            _fondeadoras = empresasTask.Result;
+            _tiposPrestamo = tiposPrestamoTask.Result;
+            _tiposPago = tiposPagoTask.Result;
+            _todosEmpleados = empleadosTask.Result;
+            _condicionesCredito = condicionesTask.Result;
+
+            if (_tiposPago.Count > 0)
+                _model.TipoPagoId = _tiposPago[0].TipoPagoId;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar catálogos: {ex.Message}", Severity.Error);
+        }
+    }
+
+    // ── Empleado ──
+
+    private async Task BuscarEmpleado()
+    {
+        if (_empleadoIdBuscar <= 0)
+        {
+            _buscarEmpleadoVisible = true;
+            return;
+        }
+
+        await CargarEmpleadoPorId(_empleadoIdBuscar);
+    }
+
+    private async Task OnEmpleadoKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await BuscarEmpleado();
+        }
+    }
+
+    private async Task CargarEmpleadoPorId(int id)
+    {
+        try
+        {
+            _empleadoSeleccionado = await EmpleadosApi.GetEmpleadoByIdAsync(id);
+            if (_empleadoSeleccionado is null)
+            {
+                Snackbar.Add($"Empleado con ID {id} no encontrado.", Severity.Warning);
+                return;
+            }
+
+            _model.EmpleadoId = _empleadoSeleccionado.EmpleadoId;
+            _empleadoIdBuscar = _empleadoSeleccionado.EmpleadoId;
+
+            if (_empleadoSeleccionado.TipoPagoId > 0)
+                _model.TipoPagoId = _empleadoSeleccionado.TipoPagoId;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al buscar empleado: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task SeleccionarEmpleadoDesdeTabla(TableRowClickEventArgs<EmpleadoListDto> args)
+    {
+        _buscarEmpleadoVisible = false;
+        _empleadoIdBuscar = args.Item.EmpleadoId;
+        await CargarEmpleadoPorId(args.Item.EmpleadoId);
+    }
+
+    // ── Simulación ──
+
+    private async Task OnFrecuenciaPagoChanged(int tipoPagoId)
+    {
+        _model.TipoPagoId = tipoPagoId;
+        await SimularAmortizacion();
+    }
+
+    private void OnFechaEntregaChanged(DateTime? newDate)
+    {
+        _fechaEntrega = newDate;
+        _model.FechaEntrega = newDate ?? DateTime.Today;
+        RecalcularFechas();
+    }
+
+    private void RecalcularFechas()
+    {
+        if (_fechaEntrega.HasValue && _model.PlazoMeses > 0)
+        {
+            _fechaFinalDescuento = _fechaEntrega.Value.AddMonths(_model.PlazoMeses);
+        }
+    }
+
+    private async Task SimularAmortizacion()
+    {
+        if (!PuedeSimular) return;
+
+        _simulando = true;
+        RecalcularFechas();
+
+        try
+        {
+            _model.TasaInteresMensual = _tasaInteresAnual / 12m;
+
+            var tipoPagoSeleccionado = _tiposPago.FirstOrDefault(tp => tp.TipoPagoId == _model.TipoPagoId);
+
+            var dto = new SimularAmortizacionDto
+            {
+                MontoAprobado = _model.MontoAprobado,
+                PlazoMeses = _model.PlazoMeses,
+                TasaInteresAnual = _tasaInteresAnual,
+                FechaEntrega = _fechaEntrega ?? DateTime.Today,
+                IntervaloDiario = tipoPagoSeleccionado?.IntervaloDiario ?? 30,
+                FrecuenciaAnual = tipoPagoSeleccionado?.FrecuenciaAnual ?? 12
+            };
+
+            _preview = await PrestamosApi.SimularAmortizacionAsync(dto);
+
+            if (_preview is not null)
+            {
+                _fechaFinalDescuento = _preview.FechaUltimoPago;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al simular amortización: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _simulando = false;
+        }
+    }
+
+    // ── Guardar ──
+
+    private async Task GuardarPrestamo()
+    {
+        await _form.Validate();
+        if (!_form.IsValid) return;
+
+        if (_model.EmpleadoId <= 0)
+        {
+            Snackbar.Add("Debe seleccionar un empleado.", Severity.Warning);
+            return;
+        }
+
+        if (_model.FondeadoraId <= 0)
+        {
+            Snackbar.Add("Debe seleccionar una fuente de fondeo.", Severity.Warning);
+            return;
+        }
+
+        if (_condicionCreditoId <= 0)
+        {
+            Snackbar.Add("Debe seleccionar una condición de crédito.", Severity.Warning);
+            return;
+        }
+
+        if (_preview is null)
+        {
+            Snackbar.Add("Debe calcular la amortización antes de guardar.", Severity.Warning);
+            return;
+        }
+
+        _confirmarGuardadoVisible = true;
+    }
+
+    private async Task EjecutarGuardar()
+    {
+        _saving = true;
+        try
+        {
+            var solicitudDto = new CrearSolicitudDto
+            {
+                EmpleadoId = _model.EmpleadoId,
+                CondicionCreditoId = _condicionCreditoId,
+                MontoSolicitado = _model.MontoAprobado,
+                PlazoMeses = _model.PlazoMeses,
+                Motivo = string.IsNullOrWhiteSpace(_model.DestinoCredito) ? "Préstamo personal" : _model.DestinoCredito
+            };
+
+            var result = await SolicitudesApi.CrearSolicitudAsync(solicitudDto);
+            if (result)
+            {
+                Snackbar.Add("¡Solicitud registrada exitosamente! Será revisada para aprobación.", Severity.Success);
+                _confirmarGuardadoVisible = false;
+                Navigation.NavigateTo("/gestion-solicitudes");
+            }
+            else
+            {
+                Snackbar.Add("Error al registrar la solicitud.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    // ── Limpiar ──
+
+    private void LimpiarFormulario()
+    {
+        _model = new PrestamoCreateDto
+        {
+            DestinoCredito = string.Empty,
+            FechaEntrega = DateTime.Today,
+            PlazoMeses = 1,
+            MontoAprobado = 0
+        };
+        _tasaInteresAnual = 60;
+        _fechaSolicitud = DateTime.Today;
+        _fechaEntrega = DateTime.Today;
+        _fechaFinalDescuento = null;
+        _empleadoSeleccionado = null;
+        _empleadoIdBuscar = 0;
+        _preview = null;
+        _prestamoId = 0;
+
+        if (_tiposPago.Count > 0)
+            _model.TipoPagoId = _tiposPago[0].TipoPagoId;
+
+        StateHasChanged();
+    }
+}

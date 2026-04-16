@@ -1,0 +1,396 @@
+@page "/gestion-empleados"
+@using MudBlazor
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador, RecursosHumanos")]
+@inject EmpleadosApiService EmpleadosService
+@inject EmpresasApiService EmpresasService
+@inject CatalogosApiService CatalogosService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Gestión de Empleados — Préstamos UcayNet</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-1">
+    <MudIcon Icon="@Icons.Material.Filled.Badge" Class="mr-2" Style="vertical-align: middle;" />
+    Gestión de Empleados
+</MudText>
+<MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mb-4">
+    Administra la base de empleados y sus datos laborales
+</MudText>
+
+<MudPaper Elevation="2" Class="pa-4 mb-4" Style="border-radius: 12px;">
+    <MudGrid Spacing="2" Justify="Justify.SpaceBetween" Class="align-center">
+        <MudItem xs="12" md="4">
+            <MudTextField @bind-Value="_searchString" Placeholder="Buscar por nombre, RFC o nómina..."
+                Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" />
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudSelect T="int?" Label="Filtrar por Empresa" @bind-Value="_filtroEmpresaId"
+                AnchorOrigin="Origin.BottomCenter" Variant="Variant.Outlined" Margin="Margin.Dense"
+                Clearable="true" SelectedValuesChanged="CargarEmpleados">
+                @foreach (var emp in _empresas)
+                {
+                    <MudSelectItem T="int?" Value="@emp.NumEmpresa">@emp.RazonSocial</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="3" Class="d-flex justify-end">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                StartIcon="@Icons.Material.Filled.PersonAdd"
+                OnClick="OpenCrearDialog"
+                Style="border-radius: 8px; text-transform: none;">
+                Nuevo Empleado
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Elevation="2" Class="pa-4" Style="border-radius: 12px;">
+    @if (_loading)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-4" />
+    }
+
+    <MudDataGrid T="EmpleadoListDto" Items="@_empleados" Dense="true"
+        Hover="true" Striped="true" Bordered="false"
+        QuickFilter="@_quickFilter"
+        Style="border-radius: 8px;"
+        RowsPerPage="15">
+        <Columns>
+            <PropertyColumn Property="x => x.NumeroNomina" Title="Nómina" />
+            <TemplateColumn Title="Nombre Completo">
+                <CellTemplate>
+                    <div class="d-flex flex-column">
+                        <MudText Typo="Typo.body2">@context.Item.NombreCompleto</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@context.Item.Rfc</MudText>
+                    </div>
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="x => x.EmpresaNombre" Title="Empresa" />
+            <PropertyColumn Property="x => x.DepartamentoNombre" Title="Departamento" />
+            <PropertyColumn Property="x => x.PuestoNombre" Title="Puesto" />
+            <TemplateColumn Title="UCAY" CellStyle="width: 80px;">
+                <CellTemplate>
+                    @if (context.Item.EmpleadoUcay)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Acciones" CellStyle="width: 120px;">
+                <CellTemplate>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                        OnClick="@(() => OpenEditarDialog(context.Item))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                        OnClick="@(() => EliminarEmpleado(context.Item))" />
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="EmpleadoListDto" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@* ── Diálogo: Crear/Editar Empleado ── *@
+<MudDialog @bind-Visible="_showDialog" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@(_isEdit ? Icons.Material.Filled.Edit : Icons.Material.Filled.PersonAdd)" Class="mr-2" Style="vertical-align: middle;" />
+            @(_isEdit ? "Editar Empleado" : "Nuevo Empleado")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
+            <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true">
+                <MudTabPanel Text="Datos Personales" Icon="@Icons.Material.Filled.Person" Class="pa-4">
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" md="4">
+                            <MudTextField @bind-Value="_model.Nombres" Label="Nombres" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudTextField @bind-Value="_model.ApellidoPaterno" Label="Apellido Paterno" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudTextField @bind-Value="_model.ApellidoMaterno" Label="Apellido Materno" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="_model.Rfc" Label="RFC" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudTextField @bind-Value="_model.Curp" Label="CURP" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudDatePicker Label="Nacimiento" @bind-Date="_model.Nacimiento" Editable="true" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="8">
+                            <MudTextField @bind-Value="_model.Email" Label="Correo" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudTextField @bind-Value="_model.Celular" Label="Celular" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="8">
+                            <MudTextField @bind-Value="_model.Domicilio" Label="Domicilio" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudNumericField @bind-Value="_model.CodigoPostal" Label="C.P." MaxLength="5" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                    </MudGrid>
+                </MudTabPanel>
+                <MudTabPanel Text="Datos Laborales" Icon="@Icons.Material.Filled.Work" Class="pa-4">
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" md="4">
+                            <MudNumericField @bind-Value="_model.NumeroNomina" Label="No. Nómina" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="8">
+                            <MudSelect T="int" Label="Empresa" @bind-Value="_model.EmpresaId" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                @foreach (var e in _empresas)
+                                {
+                                    <MudSelectItem Value="@e.NumEmpresa">@e.RazonSocial</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudSelect T="int" Label="Departamento" @bind-Value="_model.DepartamentoId" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                @foreach (var d in _departamentos)
+                                {
+                                    <MudSelectItem Value="@d.DepartamentoId">@d.Descripcion</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudSelect T="int" Label="Puesto" @bind-Value="_model.PuestoId" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                @foreach (var p in _puestos)
+                                {
+                                    <MudSelectItem Value="@p.PuestoId">@p.Descripcion</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudDatePicker Label="Fecha Ingreso" @bind-Date="_model.FechaIngreso" Editable="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudNumericField @bind-Value="_model.SueldoNominal" Label="Sueldo Nominal" Format="N2" Culture="@_culture" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudNumericField @bind-Value="_model.SueldoLaboral" Label="Sueldo Laboral" Format="N2" Culture="@_culture" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudSelect T="int" Label="Frecuencia Pago" @bind-Value="_model.TipoPagoId" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                @foreach (var t in _tiposPago)
+                                {
+                                    <MudSelectItem Value="@t.TipoPagoId">@t.Descripcion</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" md="6">
+                            <MudNumericField @bind-Value="_model.ImporteCajaAhorro" Label="Ahorro Caja" Format="N2" Culture="@_culture" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudSwitch T="bool" @bind-Value="_model.EmpleadoUcay" Label="Es Empleado directo de UCAY" Color="Color.Success" />
+                        </MudItem>
+                    </MudGrid>
+                </MudTabPanel>
+            </MudTabs>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => _showDialog = false" Variant="Variant.Text">Cancelar</MudButton>
+        <MudButton OnClick="GuardarEmpleado" Variant="Variant.Filled" Color="Color.Primary"
+            Disabled="@(!_formIsValid || _saving)" StartIcon="@(_saving ? null : Icons.Material.Filled.Save)">
+            @if (_saving)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                <MudText Class="ms-2">Guardando...</MudText>
+            }
+            else
+            {
+                <MudText>Guardar</MudText>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+
+@code {
+    private List<EmpleadoListDto> _empleados = new();
+    private List<EmpresaListDto> _empresas = new();
+    private List<DepartamentoDto> _departamentos = new();
+    private List<PuestoDto> _puestos = new();
+    private List<TipoPagoDto> _tiposPago = new();
+
+    private bool _loading = true;
+    private bool _saving = false;
+    private string _searchString = "";
+    private int? _filtroEmpresaId;
+    
+    private bool _showDialog = false;
+    private bool _isEdit = false;
+    private int _editingId = 0;
+    private EmpleadoCreateUpdateDto _model = new() { Nacimiento = DateTime.Today.AddYears(-20) };
+    private MudForm _form = null!;
+    private bool _formIsValid;
+    private System.Globalization.CultureInfo _culture = System.Globalization.CultureInfo.GetCultureInfo("es-MX");
+
+    private DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(CargarCatalogos(), CargarEmpleados());
+    }
+
+    private async Task CargarCatalogos()
+    {
+        try
+        {
+            _empresas = await EmpresasService.GetEmpresasAsync();
+            _departamentos = await CatalogosService.GetDepartamentosAsync();
+            _puestos = await CatalogosService.GetPuestosAsync();
+            _tiposPago = await CatalogosService.GetTiposPagoAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar catálogos: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task CargarEmpleados()
+    {
+        _loading = true;
+        try
+        {
+            _empleados = await EmpleadosService.GetEmpleadosAsync(_filtroEmpresaId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar empleados: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Func<EmpleadoListDto, bool> _quickFilter => x =>
+    {
+        if (string.IsNullOrWhiteSpace(_searchString)) return true;
+        if (x.NombreCompleto.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (x.Rfc.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (x.NumeroNomina.ToString().Contains(_searchString)) return true;
+        return false;
+    };
+
+    private void OpenCrearDialog()
+    {
+        _isEdit = false;
+        _editingId = 0;
+        _model = new EmpleadoCreateUpdateDto { 
+            Nacimiento = DateTime.Today.AddYears(-25),
+            FechaIngreso = DateTime.Today,
+            Activo = true // No existe activo en DTO pero lo pusimos en algún punto? No.
+        };
+        _showDialog = true;
+    }
+
+    private async Task OpenEditarDialog(EmpleadoListDto item)
+    {
+        _isEdit = true;
+        _editingId = item.EmpleadoId;
+        var detail = await EmpleadosService.GetEmpleadoByIdAsync(item.EmpleadoId);
+        if (detail != null)
+        {
+            _model = new EmpleadoCreateUpdateDto
+            {
+                Nombres = detail.Nombres,
+                ApellidoPaterno = detail.ApellidoPaterno,
+                ApellidoMaterno = detail.ApellidoMaterno,
+                Rfc = detail.Rfc,
+                Curp = detail.Curp,
+                Nacimiento = detail.Nacimiento,
+                NumeroNomina = detail.NumeroNomina,
+                Domicilio = detail.Domicilio,
+                CodigoPostal = detail.CodigoPostal,
+                Celular = detail.Celular,
+                Email = detail.Email,
+                CuentaBancaria = detail.CuentaBancaria,
+                CuentaClabe = detail.CuentaClabe,
+                FechaIngreso = detail.FechaIngreso,
+                SueldoNominal = detail.SueldoNominal,
+                SueldoLaboral = detail.SueldoLaboral,
+                EmpresaId = detail.EmpresaId,
+                DepartamentoId = detail.DepartamentoId,
+                PuestoId = detail.PuestoId,
+                TipoPagoId = detail.TipoPagoId,
+                ImporteCajaAhorro = detail.ImporteCajaAhorro,
+                EmpleadoUcay = detail.EmpleadoUcay
+            };
+            _showDialog = true;
+        }
+    }
+
+    private async Task GuardarEmpleado()
+    {
+        await _form.ValidateAsync();
+        if (!_formIsValid) return;
+
+        _saving = true;
+        try
+        {
+            HttpResponseMessage response;
+            if (_isEdit)
+                response = await EmpleadosService.UpdateEmpleadoAsync(_editingId, _model);
+            else
+                response = await EmpleadosService.CreateEmpleadoAsync(_model);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add(_isEdit ? "Empleado actualizado." : "Empleado creado.", Severity.Success);
+                _showDialog = false;
+                await CargarEmpleados();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Error: {error}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error inesperado: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task EliminarEmpleado(EmpleadoListDto item)
+    {
+        bool? result = await DialogService.ShowMessageBoxAsync(
+            "Confirmar Eliminación",
+            $"¿Está seguro de eliminar a {item.NombreCompleto}? Esta acción no se puede deshacer.",
+            yesText: "Eliminar", cancelText: "Cancelar");
+
+        if (result == true)
+        {
+            try
+            {
+                var response = await EmpleadosService.DeleteEmpleadoAsync(item.EmpleadoId);
+                if (response.IsSuccessStatusCode)
+                {
+                    Snackbar.Add("Empleado eliminado exitosamente.", Severity.Success);
+                    await CargarEmpleados();
+                }
+                else
+                {
+                    var error = await response.Content.ReadAsStringAsync();
+                    Snackbar.Add($"No se pudo eliminar: {error}", Severity.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error al eliminar: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

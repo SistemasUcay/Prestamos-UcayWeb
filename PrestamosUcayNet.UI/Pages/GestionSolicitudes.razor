@@ -1,0 +1,218 @@
+@page "/gestion-solicitudes"
+@using Microsoft.AspNetCore.Authorization
+@using PrestamosUcayNet.Application.DTOs
+@using PrestamosUcayNet.UI.Services
+@using MudBlazor
+@attribute [Authorize(Roles = "Administrador,Gerente")]
+@inject SolicitudesApiService SolicitudesApi
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8">
+    <div class="d-flex align-center justify-space-between mb-6">
+        <MudText Typo="Typo.h4" GutterBottom="true">Gestión de Solicitudes de Préstamo</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@(() => Navigation.NavigateTo("/captura-prestamo"))">
+            Nueva Solicitud
+        </MudButton>
+    </div>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+    }
+    else
+    {
+        <MudDataGrid Items="@_solicitudes" Filterable="true" SortMode="SortMode.Multiple" Hover="true" Bordered="true" Striped="true">
+            <Columns>
+                <PropertyColumn Property="x => x.FechaSolicitud" Title="Fecha" Format="dd/MM/yyyy" />
+                <PropertyColumn Property="x => x.NombreEmpleado" Title="Empleado" />
+                <PropertyColumn Property="x => x.NombreEmpresaEmpleadora" Title="Empresa" />
+                <PropertyColumn Property="x => x.NombreProducto" Title="Producto" />
+                <PropertyColumn Property="x => x.MontoSolicitado" Title="Monto" Format="C2" />
+                <PropertyColumn Property="x => x.PlazoMeses" Title="Plazo (Meses)" />
+                <TemplateColumn Title="Estado" CellStyle="width: 130px;">
+                    <CellTemplate>
+                        <MudChip T="string" Size="Size.Small" Color="@ObtenerColorEstadoSolicitud(context.Item.EstadoSolicitud)">
+                            @context.Item.EstadoSolicitud
+                        </MudChip>
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Acciones" CellClass="d-flex justify-end">
+                    <CellTemplate>
+                        <MudButton Size="@Size.Small" Variant="@Variant.Filled" Color="@Color.Primary" OnClick="@(() => AbrirRevision(context.Item))">Revisar</MudButton>
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+            <PagerContent>
+                <MudDataGridPager T="SolicitudDetalleDto" />
+            </PagerContent>
+        </MudDataGrid>
+    }
+</MudContainer>
+
+<MudDialog @bind-IsVisible="_revisionVisible" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Revisión de Solicitud #@_selectedSolicitud?.Id</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_selectedSolicitud != null)
+        {
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.subtitle2">Empleado</MudText>
+                    <MudText Typo="Typo.body1">@_selectedSolicitud.NombreEmpleado</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.subtitle2">Empresa</MudText>
+                    <MudText Typo="Typo.body1">@_selectedSolicitud.NombreEmpresaEmpleadora</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.subtitle2">Monto Solicitado</MudText>
+                    <MudText Typo="Typo.h6" Color="Color.Primary">@_selectedSolicitud.MontoSolicitado.ToString("C2")</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.subtitle2">Plazo</MudText>
+                    <MudText Typo="Typo.body1">@_selectedSolicitud.PlazoMeses meses</MudText>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudText Typo="Typo.subtitle2">Motivo</MudText>
+                    <MudText Typo="Typo.body2">@_selectedSolicitud.Motivo</MudText>
+                </MudItem>
+                
+                <MudItem xs="12">
+                    <MudDivider Class="my-4" />
+                    <MudTextField T="string" Label="Notas / Motivo (Requerido para rechazo/cancelación)" 
+                                  @bind-Value="_notasRevision" Lines="3" Variant="Variant.Outlined" />
+                </MudItem>
+            </MudGrid>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="() => _revisionVisible = false">Cerrar</MudButton>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="Rechazar"
+                   StartIcon="@Icons.Material.Filled.ThumbDown">Rechazar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="Cancelar"
+                   StartIcon="@Icons.Material.Filled.Cancel">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="Aprobar"
+                   StartIcon="@Icons.Material.Filled.CheckCircle">Aprobar y Otorgar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<SolicitudDetalleDto> _solicitudes = new();
+    private bool _loading = true;
+    private bool _revisionVisible = false;
+    private SolicitudDetalleDto? _selectedSolicitud;
+    private string _notasRevision = "";
+    private DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Medium, FullWidth = true };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarSolicitudes();
+    }
+
+    private async Task CargarSolicitudes()
+    {
+        _loading = true;
+        try
+        {
+            _solicitudes = await SolicitudesApi.GetPendientesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Error al cargar solicitudes: " + ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void AbrirRevision(SolicitudDetalleDto item)
+    {
+        _selectedSolicitud = item;
+        _notasRevision = "";
+        _revisionVisible = true;
+    }
+
+    private async Task Aprobar()
+    {
+        if (_selectedSolicitud == null) return;
+
+        var result = await SolicitudesApi.AprobarAsync(new AprobarSolicitudDto 
+        { 
+            SolicitudId = _selectedSolicitud.Id,
+            MontoAprobado = _selectedSolicitud.MontoSolicitado,
+            Notas = _notasRevision
+        });
+
+        if (result)
+        {
+            Snackbar.Add("Solicitud aprobada — el préstamo ha sido otorgado. Proceda a la activación desde Gestión de Préstamos.", Severity.Success);
+            _revisionVisible = false;
+            await CargarSolicitudes();
+        }
+        else
+        {
+            Snackbar.Add("No se pudo aprobar la solicitud.", Severity.Error);
+        }
+    }
+
+    private async Task Rechazar()
+    {
+        if (_selectedSolicitud == null) return;
+        if (string.IsNullOrWhiteSpace(_notasRevision))
+        {
+            Snackbar.Add("Debe indicar el motivo del rechazo.", Severity.Warning);
+            return;
+        }
+
+        var result = await SolicitudesApi.RechazarAsync(new RechazarSolicitudDto 
+        { 
+            SolicitudId = _selectedSolicitud.Id,
+            MotivoRechazo = _notasRevision
+        });
+
+        if (result)
+        {
+            Snackbar.Add("Solicitud rechazada.", Severity.Info);
+            _revisionVisible = false;
+            await CargarSolicitudes();
+        }
+    }
+
+    private async Task Cancelar()
+    {
+        if (_selectedSolicitud == null) return;
+        if (string.IsNullOrWhiteSpace(_notasRevision))
+        {
+            Snackbar.Add("Debe indicar el motivo de la cancelación.", Severity.Warning);
+            return;
+        }
+
+        var result = await SolicitudesApi.CancelarAsync(new CancelarSolicitudDto 
+        { 
+            SolicitudId = _selectedSolicitud.Id,
+            MotivoCancelacion = _notasRevision
+        });
+
+        if (result)
+        {
+            Snackbar.Add("Solicitud cancelada.", Severity.Info);
+            _revisionVisible = false;
+            await CargarSolicitudes();
+        }
+    }
+
+    private static Color ObtenerColorEstadoSolicitud(string estado) => estado switch
+    {
+        "Pendiente" or "En Trámite" => Color.Warning,
+        "Aprobada" or "Otorgado" => Color.Success,
+        "Rechazada" => Color.Error,
+        "Cancelada" => Color.Dark,
+        _ => Color.Default
+    };
+}

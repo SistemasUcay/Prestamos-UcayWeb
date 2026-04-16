@@ -1,0 +1,46 @@
+<div class="d-flex flex-column align-center pa-4">
+    <MudImage Src="images/logo-grupo-yaqui.svg" Alt="Grupo Yaqui" Width="120" Height="120" />
+</div>
+
+<MudDivider Class="mb-2" />
+
+<MudNavMenu>
+    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+
+    <AuthorizeView Roles="Administrador,Gerente,Contador">
+        <Authorized>
+            <MudDivider Class="my-2" />
+            <MudNavGroup Title="Gestión Créditos" Icon="@Icons.Material.Filled.AccountBalance" Expanded="false">
+                <MudNavLink Href="gestion-solicitudes" Icon="@Icons.Material.Filled.PendingActions">Solicitudes</MudNavLink>
+               @*  <MudNavLink Href="captura-prestamo" Icon="@Icons.Material.Filled.RequestPage">Captura de Préstamo</MudNavLink> *@
+                <MudNavLink Href="gestion-prestamos" Icon="@Icons.Material.Filled.Payments">Préstamos</MudNavLink>
+            </MudNavGroup>
+        </Authorized>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="Administrador, RecursosHumanos">
+        <Authorized>
+            <MudDivider Class="my-2" />
+            <MudNavGroup Title="Catálogos" Icon="@Icons.Material.Filled.LibraryBooks" Expanded="false">
+                <AuthorizeView Roles="Administrador" Context="adminContext">
+                    <MudNavLink Href="gestion-empresas" Icon="@Icons.Material.Filled.Business">Empresas</MudNavLink>
+                </AuthorizeView>
+                <MudNavLink Href="gestion-departamentos" Icon="@Icons.Material.Filled.Domain">Departamentos</MudNavLink>
+                <MudNavLink Href="gestion-puestos" Icon="@Icons.Material.Filled.Work">Puestos</MudNavLink>
+                <MudNavLink Href="gestion-frecuencia-pago" Icon="@Icons.Material.Filled.EventRepeat">Frecuencia de Pago</MudNavLink>
+                <MudNavLink Href="gestion-tipos-prestamo" Icon="@Icons.Material.Filled.Category">Tipos de Préstamo</MudNavLink>
+                <MudNavLink Href="gestion-empleados" Icon="@Icons.Material.Filled.Badge">Empleados</MudNavLink>
+            </MudNavGroup>
+        </Authorized>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="Administrador">
+        <Authorized>
+            <MudDivider Class="my-2" />
+            <MudNavGroup Title="Sistema" Icon="@Icons.Material.Filled.AdminPanelSettings" Expanded="false">
+                <MudNavLink Href="gestion-usuarios" Icon="@Icons.Material.Filled.People">Usuarios</MudNavLink>
+                <MudNavLink Href="configuracion-sistema" Icon="@Icons.Material.Filled.Settings">Configuración</MudNavLink>
+            </MudNavGroup>
+        </Authorized>
+    </AuthorizeView>
+</MudNavMenu>

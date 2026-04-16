@@ -1,0 +1,243 @@
+@page "/gestion-puestos"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador,RecursosHumanos")]
+@inject CatalogosApiService CatalogosApi
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Gestión de Puestos — Préstamos UcayNet</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-1">
+    <MudIcon Icon="@Icons.Material.Filled.Work" Class="mr-2" Style="vertical-align: middle;" />
+    Gestión de Puestos / Cargos
+</MudText>
+<MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mb-4">
+    Administra los puestos y cargos de la organización
+</MudText>
+
+@* Barra de búsqueda y botón Nuevo *@
+<MudPaper Elevation="2" Class="pa-4 mb-4" Style="border-radius: 12px;">
+    <MudGrid Spacing="2" Justify="Justify.SpaceBetween" Class="align-center">
+        <MudItem xs="12" md="6">
+            <MudTextField @bind-Value="_searchString" Placeholder="Buscar por nombre o ID..."
+                Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" />
+        </MudItem>
+        <MudItem xs="12" md="4" Class="d-flex justify-end">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                StartIcon="@Icons.Material.Filled.Add"
+                OnClick="() => AbrirFormulario()"
+                Style="border-radius: 8px; text-transform: none;">
+                Nuevo Puesto
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@* Tabla de datos *@
+<MudPaper Elevation="2" Class="pa-4" Style="border-radius: 12px;">
+    @if (_loading)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-4" />
+    }
+
+    <MudDataGrid T="PuestoDto" Items="@_puestos" Dense="true"
+        Hover="true" Striped="true" Bordered="false"
+        QuickFilter="@_quickFilter"
+        Style="border-radius: 8px;"
+        RowsPerPage="15">
+        <Columns>
+            <PropertyColumn Property="x => x.PuestoId" Title="ID" CellStyle="width: 80px;" />
+            <PropertyColumn Property="x => x.Descripcion" Title="Puesto / Cargo" />
+            <TemplateColumn Title="Empleados" CellStyle="width: 120px;">
+                <CellTemplate>
+                    <MudChip T="string" Size="Size.Small"
+                        Color="@(context.Item.CantidadEmpleados > 0 ? Color.Info : Color.Default)"
+                        Variant="Variant.Outlined">
+                        @context.Item.CantidadEmpleados
+                    </MudChip>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Acciones" CellStyle="width: 120px;">
+                <CellTemplate>
+                    <MudTooltip Text="Editar">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" Size="Size.Small"
+                            OnClick="@(() => AbrirFormulario(context.Item))" />
+                    </MudTooltip>
+                    <MudTooltip Text="Eliminar">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                            Disabled="@(context.Item.CantidadEmpleados > 0)"
+                            OnClick="@(() => ConfirmarEliminacion(context.Item))" />
+                    </MudTooltip>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <NoRecordsContent>
+            <MudText Typo="Typo.body1" Align="Align.Center" Class="pa-4">
+                No se encontraron puestos.
+            </MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudDataGridPager T="PuestoDto" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@* Diálogo de Formulario *@
+<MudDialog @bind-Visible="_dialogVisible" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@(_model.PuestoId == 0 ? Icons.Material.Filled.Add : Icons.Material.Filled.Edit)"
+                Class="mr-2" Style="vertical-align: middle;" />
+            @(_model.PuestoId == 0 ? "Nuevo Puesto" : "Editar Puesto")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
+            <MudTextField T="string" Label="Nombre del Puesto" @bind-Value="_model.Descripcion"
+                Required="true" RequiredError="El nombre del puesto es obligatorio"
+                Counter="100" MaxLength="100"
+                Validation="@(new Func<string, string?>(ValidarDescripcion))"
+                Variant="Variant.Outlined" Margin="Margin.Dense" Class="mt-4"
+                Immediate="true"
+                Disabled="@_saving" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => _dialogVisible = false" Disabled="@_saving">Cancelar</MudButton>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="GuardarAsync"
+            Disabled="@(!_formIsValid || _saving)">
+            @if (_saving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Guardando...</span>
+            }
+            else
+            {
+                <span>Guardar</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<PuestoDto> _puestos = new();
+    private bool _loading = true;
+    private bool _saving;
+    private string _searchString = "";
+    private bool _dialogVisible;
+    private bool _formIsValid;
+    private MudForm _form = null!;
+    private PuestoDto _model = new();
+    private DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarPuestosAsync();
+    }
+
+    private async Task CargarPuestosAsync()
+    {
+        _loading = true;
+        try
+        {
+            _puestos = await CatalogosApi.GetPuestosAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar puestos: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Func<PuestoDto, bool> _quickFilter => x =>
+    {
+        if (string.IsNullOrWhiteSpace(_searchString)) return true;
+        if (x.Descripcion.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if ($"{x.PuestoId}".Contains(_searchString)) return true;
+        return false;
+    };
+
+    private static string? ValidarDescripcion(string? valor)
+    {
+        if (string.IsNullOrWhiteSpace(valor))
+            return "El nombre del puesto es obligatorio.";
+        if (valor.Length < 3)
+            return "Debe tener al menos 3 caracteres.";
+        return null;
+    }
+
+    private void AbrirFormulario(PuestoDto? item = null)
+    {
+        _model = item is null
+            ? new PuestoDto()
+            : new PuestoDto { PuestoId = item.PuestoId, Descripcion = item.Descripcion };
+        _dialogVisible = true;
+    }
+
+    private async Task GuardarAsync()
+    {
+        await _form.Validate();
+        if (!_formIsValid) return;
+
+        _saving = true;
+        try
+        {
+            bool esNuevo = _model.PuestoId == 0;
+            bool success = esNuevo
+                ? await CatalogosApi.CreatePuestoAsync(_model)
+                : await CatalogosApi.UpdatePuestoAsync(_model);
+
+            if (success)
+            {
+                Snackbar.Add(esNuevo ? "Puesto creado correctamente." : "Puesto actualizado correctamente.", Severity.Success);
+                _dialogVisible = false;
+                await CargarPuestosAsync();
+            }
+            else
+            {
+                Snackbar.Add("No se pudo guardar. Verifique que el nombre no esté duplicado.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error inesperado: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task ConfirmarEliminacion(PuestoDto item)
+    {
+        bool? result = await DialogService.ShowMessageBoxAsync(
+            "Confirmar Eliminación",
+            $"¿Está seguro de eliminar el puesto '{item.Descripcion}'?",
+            yesText: "Eliminar", cancelText: "Cancelar"
+        );
+
+        if (result != true) return;
+
+        try
+        {
+            var success = await CatalogosApi.DeletePuestoAsync(item.PuestoId);
+            if (success)
+            {
+                Snackbar.Add("Puesto eliminado correctamente.", Severity.Success);
+                await CargarPuestosAsync();
+            }
+            else
+            {
+                Snackbar.Add("No se pudo eliminar. Verifique que no tenga empleados asociados.", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al eliminar: {ex.Message}", Severity.Error);
+        }
+    }
+}

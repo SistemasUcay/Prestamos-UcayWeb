@@ -1,0 +1,123 @@
+@inherits LayoutComponentBase
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<MudThemeProvider Theme="_theme" @bind-IsDarkMode="@_isDarkMode" />
+<MudDialogProvider />
+<MudSnackbarProvider />
+<MudPopoverProvider />
+
+<AuthorizeView>
+    <Authorized>
+        <MudLayout>
+            <MudAppBar Elevation="1" Color="Color.Primary" Dense="true">
+                <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                    OnClick="@((e) => DrawerToggle())" />
+                <MudImage Src="images/logo-icon.svg" Alt="Grupo Yaqui" Width="32" Height="32" Class="ml-2" />
+                <MudText Typo="Typo.h6" Class="ml-2">Grupo Yaqui — Préstamos</MudText>
+                <MudSpacer />
+
+                <MudChip T="string" Color="Color.Surface" Size="Size.Small" Icon="@Icons.Material.Filled.Person"
+                    Class="mr-2">
+                    @context.User.Identity?.Name
+                </MudChip>
+
+                <MudToggleIconButton @bind-Toggled="@_isDarkMode"
+                    Icon="@Icons.Material.Filled.DarkMode"
+                    ToggledIcon="@Icons.Material.Filled.LightMode"
+                    Color="Color.Inherit"
+                    ToggledColor="Color.Inherit"
+                    Title="Modo oscuro" ToggledTitle="Modo claro" />
+
+                <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" Edge="Edge.End"
+                    OnClick="LogoutAsync" Title="Cerrar sesión" />
+            </MudAppBar>
+
+            <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+                <NavMenu />
+            </MudDrawer>
+
+            <MudMainContent>
+                <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6 mb-6">
+                    @Body
+                </MudContainer>
+            </MudMainContent>
+        </MudLayout>
+    </Authorized>
+    <NotAuthorized>
+        <MudLayout>
+            <MudMainContent>
+                @Body
+            </MudMainContent>
+        </MudLayout>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    bool _drawerOpen = true;
+    bool _isDarkMode = false;
+
+    private MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#2E7D32",
+            Secondary = "#E67E22",
+            Tertiary = "#C0392B",
+            AppbarBackground = "#1B5E20",
+            Background = "#F5F5F5",
+            DrawerBackground = "#FAFAFA",
+            DrawerText = "#2C3E50",
+            DrawerIcon = "#2E7D32",
+            Surface = "#FFFFFF",
+            Success = "#43A047",
+            Warning = "#F39C12",
+            Error = "#C0392B",
+            Info = "#2196F3",
+            TextPrimary = "#212121",
+            TextSecondary = "#5D4037",
+            ActionDefault = "#2E7D32"
+        },
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#66BB6A",
+            Secondary = "#FFB74D",
+            Tertiary = "#EF5350",
+            AppbarBackground = "#1A2A1A",
+            Background = "#121A12",
+            DrawerBackground = "#1A2A1A",
+            DrawerText = "#E0E0E0",
+            DrawerIcon = "#81C784",
+            Surface = "#1E2D1E",
+            Success = "#81C784",
+            Warning = "#FFD54F",
+            Error = "#EF5350",
+            Info = "#64B5F6",
+            TextPrimary = "#E8F5E9",
+            TextSecondary = "#A5D6A7",
+            ActionDefault = "#81C784"
+        },
+        Typography = new Typography
+        {
+            Default = new DefaultTypography
+            {
+                FontFamily = ["Inter", "Roboto", "Helvetica", "Arial", "sans-serif"]
+            }
+        },
+        LayoutProperties = new LayoutProperties
+        {
+            DrawerWidthLeft = "260px"
+        }
+    };
+
+    void DrawerToggle()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    async Task LogoutAsync()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+}

@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="PrestamosUcayNet.API/PrestamosUcayNet.API.csproj" />
+  <Project Path="PrestamosUcayNet.Application/PrestamosUcayNet.Application.csproj" />
+  <Project Path="PrestamosUcayNet.Domain/PrestamosUcayNet.Domain.csproj" />
+  <Project Path="PrestamosUcayNet.Infrastructure/PrestamosUcayNet.Infrastructure.csproj" />
+  <Project Path="PrestamosUcayNet.UI/PrestamosUcayNet.UI.csproj" />
+</Solution>

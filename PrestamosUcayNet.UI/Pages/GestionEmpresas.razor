@@ -1,0 +1,307 @@
+@page "/gestion-empresas"
+@using MudBlazor
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador")]
+@inject EmpresasApiService EmpresasService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Gestión de Empresas — Préstamos UcayNet</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-1">
+    <MudIcon Icon="@Icons.Material.Filled.Business" Class="mr-2" Style="vertical-align: middle;" />
+    Gestión de Empresas
+</MudText>
+<MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mb-4">
+    Administra las empresas y fuentes fondeadoras
+</MudText>
+
+<MudPaper Elevation="2" Class="pa-4" Style="border-radius: 12px;">
+    <div class="d-flex justify-space-between align-center mb-4">
+        <MudTextField @bind-Value="_searchString" Placeholder="Buscar empresa..."
+            Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+            Variant="Variant.Outlined" Margin="Margin.Dense"
+            Style="max-width: 350px;" Immediate="true" />
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+            StartIcon="@Icons.Material.Filled.AddBusiness"
+            OnClick="OpenCrearDialog"
+            Style="border-radius: 8px; text-transform: none;">
+            Nueva Empresa
+        </MudButton>
+    </div>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-4" />
+    }
+
+    <MudDataGrid T="EmpresaListDto" Items="@_empresas" Dense="true"
+        Hover="true" Striped="true" Bordered="false"
+        QuickFilter="@_quickFilter"
+        Style="border-radius: 8px;"
+        RowsPerPage="10">
+        <Columns>
+            <PropertyColumn Property="x => x.RazonSocial" Title="Razón Social" />
+            <PropertyColumn Property="x => x.NombreCorto" Title="Nombre Corto" />
+            <PropertyColumn Property="x => x.Rfc" Title="RFC" />
+            <TemplateColumn Title="Tipo">
+                <CellTemplate>
+                    @if (context.Item.IsCajaDeAhorro)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Filled">Caja de Ahorro</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">Empresa</MudChip>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Estado">
+                <CellTemplate>
+                    @if (context.Item.Activa)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">Activa</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled">Inactiva</MudChip>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="x => x.SaldoActual" Title="Fondo Disp." Format="C2" />
+            <TemplateColumn Title="Acciones" CellStyle="width: 120px;">
+                <CellTemplate>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                        OnClick="@(() => OpenEditarDialog(context.Item))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                        OnClick="@(() => EliminarEmpresa(context.Item))" />
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="EmpresaListDto" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@* ── Diálogo: Crear/Editar Empresa ── *@
+<MudDialog @bind-Visible="_showDialog" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@(_isEdit ? Icons.Material.Filled.Edit : Icons.Material.Filled.AddBusiness)" Class="mr-2" Style="vertical-align: middle;" />
+            @(_isEdit ? "Editar Empresa" : "Nueva Empresa")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" md="8">
+                    <MudTextField @bind-Value="_model.RazonSocial" Label="Razón Social"
+                        Required="true" RequiredError="La razón social es obligatoria."
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudTextField @bind-Value="_model.NombreCorto" Label="Nombre Corto"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_model.Rfc" Label="RFC"
+                        Required="true" RequiredError="El RFC es obligatorio."
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="_model.Email" Label="Correo"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_model.Direccion" Label="Dirección"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudTextField @bind-Value="_model.CodPostal" Label="C.P."
+                        MaxLength="5" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudTextField @bind-Value="_model.Telefono" Label="Teléfono"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudNumericField @bind-Value="_model.SaldoActual" Label="Fondo Inicial"
+                        Format="N2" Culture="@_culture" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_model.RepresentanteLegal" Label="Representante Legal"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudSwitch T="bool" @bind-Value="_model.IsCajaDeAhorro" Label="Es Caja de Ahorro" Color="Color.Info" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudSwitch T="bool" @bind-Value="_model.Activa" Label="Empresa Activa" Color="Color.Success" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => _showDialog = false" Variant="Variant.Text">Cancelar</MudButton>
+        <MudButton OnClick="GuardarEmpresa" Variant="Variant.Filled" Color="Color.Primary"
+            Disabled="@(!_formIsValid || _saving)" StartIcon="@(_saving ? null : Icons.Material.Filled.Save)">
+            @if (_saving)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                <MudText Class="ms-2">Guardando...</MudText>
+            }
+            else
+            {
+                <MudText>Guardar</MudText>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+
+@code {
+    private List<EmpresaListDto> _empresas = new();
+    private bool _loading = true;
+    private bool _saving = false;
+    private string _searchString = "";
+    private bool _showDialog = false;
+    private bool _isEdit = false;
+    private int _editingId = 0;
+    private EmpresaCreateUpdateDto _model = new() { Activa = true };
+    private MudForm _form = null!;
+    private bool _formIsValid;
+    private System.Globalization.CultureInfo _culture = System.Globalization.CultureInfo.GetCultureInfo("es-MX");
+
+    private DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarEmpresas();
+    }
+
+    private async Task CargarEmpresas()
+    {
+        _loading = true;
+        try
+        {
+            _empresas = await EmpresasService.GetEmpresasAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar empresas: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Func<EmpresaListDto, bool> _quickFilter => x =>
+    {
+        if (string.IsNullOrWhiteSpace(_searchString)) return true;
+        if (x.RazonSocial.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (x.NombreCorto?.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ?? false) return true;
+        if (x.Rfc.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    };
+
+    private void OpenCrearDialog()
+    {
+        _isEdit = false;
+        _editingId = 0;
+        _model = new EmpresaCreateUpdateDto { Activa = true };
+        _showDialog = true;
+    }
+
+    private async Task OpenEditarDialog(EmpresaListDto item)
+    {
+        _isEdit = true;
+        _editingId = item.NumEmpresa;
+        var detail = await EmpresasService.GetEmpresaByIdAsync(item.NumEmpresa);
+        if (detail != null)
+        {
+            _model = new EmpresaCreateUpdateDto
+            {
+                RazonSocial = detail.RazonSocial,
+                NombreCorto = detail.NombreCorto,
+                Direccion = detail.Direccion,
+                CodPostal = detail.CodPostal,
+                Rfc = detail.Rfc,
+                Telefono = detail.Telefono,
+                Email = detail.Email,
+                RepresentanteLegal = detail.RepresentanteLegal,
+                IsCajaDeAhorro = detail.IsCajaDeAhorro,
+                Activa = detail.Activa,
+                SaldoActual = detail.SaldoActual
+            };
+            _showDialog = true;
+        }
+    }
+
+    private async Task GuardarEmpresa()
+    {
+        await _form.ValidateAsync();
+        if (!_formIsValid) return;
+
+        _saving = true;
+        try
+        {
+            HttpResponseMessage response;
+            if (_isEdit)
+                response = await EmpresasService.UpdateEmpresaAsync(_editingId, _model);
+            else
+                response = await EmpresasService.CreateEmpresaAsync(_model);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add(_isEdit ? "Empresa actualizada exitosamente." : "Empresa creada exitosamente.", Severity.Success);
+                _showDialog = false;
+                await CargarEmpresas();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Error: {error}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error inesperado: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task EliminarEmpresa(EmpresaListDto item)
+    {
+        bool? result = await DialogService.ShowMessageBoxAsync(
+            "Confirmar Eliminación",
+            $"¿Está seguro de eliminar la empresa {item.RazonSocial}? Esta acción no se puede deshacer.",
+            yesText: "Eliminar", cancelText: "Cancelar");
+
+        if (result == true)
+        {
+            try
+            {
+                var response = await EmpresasService.DeleteEmpresaAsync(item.NumEmpresa);
+                if (response.IsSuccessStatusCode)
+                {
+                    Snackbar.Add("Empresa eliminada exitosamente.", Severity.Success);
+                    await CargarEmpresas();
+                }
+                else
+                {
+                    var error = await response.Content.ReadAsStringAsync();
+                    Snackbar.Add($"No se puede eliminar: {error}", Severity.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error al eliminar: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}
