@@ -7,7 +7,6 @@
 @inject EmpleadosApiService EmpleadosApi
 @inject EmpresasApiService EmpresasApi
 @inject CatalogosApiService CatalogosApi
-@inject SolicitudesApiService SolicitudesApi
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
 
@@ -17,12 +16,12 @@
 <MudPaper Elevation="1" Class="pa-0.5 mb-2" Style="background: var(--mud-palette-primary); color: white; border-radius: 8px 8px 0 0;">
     <div class="d-flex align-center justify-space-between">
         <MudText Typo="Typo.h6" Style="color: white;">
-            <MudIcon Icon="@Icons.Material.Filled.RequestPage" Class="mr-1" Style="vertical-align: ;" />
-            Solicitud de Préstamos
+            <MudIcon Icon="@Icons.Material.Filled.RequestPage" Class="mr-1" Style="vertical-align: auto" />
+            Solicitud de Préstamos 
         </MudText>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-1">
             <MudIconButton Icon="@Icons.Material.Filled.Save" Color="Color.Inherit" Title="Guardar"
-                           OnClick="GuardarPrestamo" Disabled="@(_saving || !_formValid)" />
+                           OnClick="GuardarPrestamo"  Disabled="@(_saving || !_formValid)"/>
             <MudIconButton Icon="@Icons.Material.Filled.Refresh" Color="Color.Inherit" Title="Limpiar"
                            OnClick="LimpiarFormulario" />
             <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Color="Color.Inherit" Title="Regresar a Solicitudes"
@@ -34,7 +33,7 @@
 <MudForm @ref="_form" @bind-IsValid="_formValid">
     @* ── ENCABEZADO ── *@
     <MudPaper Elevation="1" Class="pa-4 mb-2" Style="border-radius: 0;">
-        <MudGrid Spacing="2">
+        <MudGrid Spacing="1">
             @* Fila 1: Número Solicitud, Fuente de Fondeo, Fecha *@
             <MudItem xs="12" md="2">
                 <MudTextField T="string" Label="Número Solicitud" Value="@(_prestamoId > 0 ? _prestamoId.ToString() : "Nuevo")"
@@ -42,8 +41,9 @@
                               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Tag" />
             </MudItem>
             <MudItem xs="12" md="7">
-                <MudSelect T="int" Label="Fuente de Fondeo" @bind-Value="_model.FondeadoraId" Required="true"
+                <MudSelect T="int" Label="Fuente de Fondeo" @bind-Value="_model.FondeadoraId" Required="true"                          
                            Variant="Variant.Outlined" Margin="Margin.Dense" AnchorOrigin="Origin.BottomCenter">
+                    <MudSelectItem Value="0">Seleccionar una empresa</MudSelectItem>
                     @foreach (var emp in _fondeadoras)
                     {
                         <MudSelectItem Value="@emp.NumEmpresa">@emp.RazonSocial</MudSelectItem>
@@ -58,13 +58,13 @@
 
             @* Fila 2: Empleado, Nombre, Sueldo *@
             <MudItem xs="12" md="2">
-                <MudNumericField T="int" Label="Empleado" @bind-Value="_empleadoIdBuscar"
+                <MudNumericField T="int" Label="Empleado" @bind-Value="_empleadoIdBuscar" 
                                  Variant="Variant.Outlined" Margin="Margin.Dense"
                                  Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search"
                                  OnAdornmentClick="BuscarEmpleado"
                                  OnKeyDown="OnEmpleadoKeyDown" />
             </MudItem>
-            <MudItem xs="12" md="6">
+            <MudItem xs="12" md="7">
                 @if (_empleadoSeleccionado is not null)
                 {
                     <MudText Typo="Typo.h6" Color="Color.Primary" Class="mt-2" Style="font-weight: bold;">
@@ -84,7 +84,7 @@
                     @((_empleadoSeleccionado?.SueldoLaboral ?? 0).ToString("C2"))
                 </MudText>
             </MudItem>
-            <MudItem xs="12" md="2" />
+           @*  <MudItem xs="12" md="2" /> *@
 
             @* Fila 3: Tipo de Préstamo, Observaciones *@
             <MudItem xs="12" md="3">
@@ -97,7 +97,7 @@
                 </MudSelect>
             </MudItem>
             
-            <MudItem xs="12" md="5">
+            <MudItem xs="12" md="9">
                 <MudTextField T="string" Label="Observaciones / Motivo" @bind-Value="_model.DestinoCredito"
                               Variant="Variant.Outlined" Margin="Margin.Dense" />
             </MudItem>
@@ -105,9 +105,9 @@
     </MudPaper>
 
     @* ── CUERPO: 3 Paneles ── *@
-    <MudGrid Spacing="0">
+    <MudGrid Spacing="1">
         @* ── Panel Izquierdo: Datos del Préstamo ── *@
-        <MudItem xs="12" md="3">
+        <MudItem xs="12" md="2">
             <MudPaper Elevation="1" Class="pa-4" Style="min-height: 480px; border-radius: 0;">
                 <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mb-4" Style="font-weight: bold; border-bottom: 2px solid var(--mud-palette-primary); padding-bottom: 4px;">
                     <MudIcon Icon="@Icons.Material.Filled.Description" Size="Size.Small" Class="mr-1" Style="vertical-align: middle;" />
@@ -115,15 +115,15 @@
                 </MudText>
 
                 <MudNumericField T="decimal" Label="Importe Solicitado" @bind-Value="_model.MontoAprobado"
-                                 Format="N2" Min="0.01m" Required="true"
+                                 Format="N0" Min="1000m" Step="10000" Required="true"
                                  Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
-                                 Adornment="Adornment.Start" AdornmentText="$"
+                                 Adornment="Adornment.End" AdornmentText="$" 
                                  DebounceInterval="500" OnDebounceIntervalElapsed="SimularAmortizacion" />
 
                 <MudNumericField T="decimal" Label="Tasa de Interés Anual" @bind-Value="_tasaInteresAnual"
                                  Format="N2" Min="0.01m" Required="true"
                                  Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
-                                 Adornment="Adornment.Start" AdornmentText="%"
+                                 Adornment="Adornment.End" AdornmentText="%"
                                  DebounceInterval="500" OnDebounceIntervalElapsed="SimularAmortizacion" />
 
                 <MudNumericField T="int" Label="Plazo (Meses)" @bind-Value="_model.PlazoMeses"
@@ -171,10 +171,63 @@
             </MudPaper>
         </MudItem>
 
-        @* ── Panel Central: Tabla de Amortización ── *@
-        <MudItem xs="12" md="6">
+        @* ── Panel: Pagos Adicionales a Capital ── *@
+        <MudItem xs="12" md="3" >
             <MudPaper Elevation="1" Class="pa-4" Style="min-height: 480px; border-radius: 0;">
-                <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mb-4" Style="font-weight: bold; border-bottom: 2px solid var(--mud-palette-primary); padding-bottom: 4px;">
+                <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mb-2" Style="font-weight: bold; border-bottom: 2px solid var(--mud-palette-primary); padding-bottom: 4px;">
+                    <MudIcon Icon="@Icons.Material.Filled.AddCard" Size="Size.Small" Class="mr-1" Style="vertical-align: middle;" />
+                    Pagos Adicionales a Capital
+                </MudText>
+
+                <div class="d-flex justify-space-between align-center mb-2">
+                    <MudText Typo="Typo.body2" Style="font-weight: bold;">Total Pagos a Capital:</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Primary" Style="font-weight: bold;">@_pagosAdicionales.Sum(p => p.Monto).ToString("C2")</MudText>
+                </div>
+
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" FullWidth="true"
+                           StartIcon="@Icons.Material.Filled.Add" OnClick="AgregarPagoAdicional" Class="mb-3"
+                           Disabled="@(_preview is null)">
+                    Agregar Pago
+                </MudButton>
+
+                <div style="max-height: 340px; overflow-y: auto;">
+                    @foreach (var (pago, idx) in _pagosAdicionales.Select((p, i) => (p, i)))
+                    {
+                        <MudCard Elevation="0" Class="mb-2 pa-2" Style="border: 1px solid var(--mud-palette-lines-default);">
+                            <div class="d-flex justify-space-between align-center mb-1">
+                                <MudText Typo="Typo.caption" Style="font-weight: bold;">Pago #@pago.NumeroPago</MudText>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                               OnClick="@(() => EliminarPagoAdicional(idx))" Title="Eliminar" />
+                            </div>
+                            <MudTextField T="string" Label="Descripción" @bind-Value="pago.Descripcion" Margin="Margin.Dense"
+                                          Variant="Variant.Outlined" Class="mb-1" />
+                            <div class="d-flex justify-content-around align-center mb-1">
+                                 <MudNumericField T="int" Label="# Pago" @bind-Value="pago.NumeroPago" Min="1"
+                                             Max="@(_preview?.NumeroPagos ?? 999)" Margin="Margin.Dense"
+                                             Variant="Variant.Outlined" Class="mb-1" />
+                                 <MudNumericField T="decimal" Label="Monto" @bind-Value="pago.Monto" Format="N0" Min="1m" Step="1000"
+                                             Margin="Margin.Dense" Variant="Variant.Outlined"
+                                             Adornment="Adornment.End" AdornmentText="$" />
+                            </div>
+                        </MudCard>
+                    }
+                </div>
+
+                @if (_pagosAdicionales.Count > 0)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.Calculate" OnClick="SimularAmortizacion" Class="mt-2">
+                        Recalcular
+                    </MudButton>
+                }
+            </MudPaper>
+        </MudItem>
+
+        @* ── Panel Central: Tabla de Amortización ── *@
+        <MudItem xs="12" md="5">
+            <MudPaper Elevation="1" Class="pa-4" Style="min-height: 480px; border-radius: 0;">
+                <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mb-4" 
+                         Style="font-weight: bold; border-bottom: 2px solid var(--mud-palette-primary); padding-bottom: 4px;">
                     <MudIcon Icon="@Icons.Material.Filled.TableChart" Size="Size.Small" Class="mr-1" Style="vertical-align: middle;" />
                     Amortizaciones del Préstamo
                 </MudText>
@@ -199,6 +252,7 @@
                             <MudTh Style="text-align: right;">CUOTA</MudTh>
                             <MudTh Style="text-align: right;">INTERÉS</MudTh>
                             <MudTh Style="text-align: right;">CAPITAL</MudTh>
+                            <MudTh Style="text-align: right;">PAGO EXTRA</MudTh>
                             <MudTh Style="text-align: right;">SALDO DE CAPITAL</MudTh>
                         </HeaderContent>
                         <RowTemplate>
@@ -207,6 +261,7 @@
                             <MudTd Style="text-align: right;">@context.ImportePago.ToString("N2")</MudTd>
                             <MudTd Style="text-align: right;">@context.ImporteInteres.ToString("N2")</MudTd>
                             <MudTd Style="text-align: right;">@context.ImporteCapital.ToString("N2")</MudTd>
+                            <MudTd Style="text-align: right;">@(context.PagoExtra > 0 ? context.PagoExtra.ToString("N2") : "—")</MudTd>
                             <MudTd Style="text-align: right;">@context.SaldoFinal.ToString("N2")</MudTd>
                         </RowTemplate>
                     </MudTable>
@@ -215,7 +270,7 @@
         </MudItem>
 
         @* ── Panel Derecho: Resumen del Préstamo ── *@
-        <MudItem xs="12" md="3">
+        <MudItem xs="12" md="2">
             <MudPaper Elevation="1" Class="pa-4" Style="min-height: 480px; border-radius: 0;">
                 <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mb-4" Style="font-weight: bold; border-bottom: 2px solid var(--mud-palette-primary); padding-bottom: 4px;">
                     <MudIcon Icon="@Icons.Material.Filled.Summarize" Size="Size.Small" Class="mr-1" Style="vertical-align: middle;" />
@@ -287,18 +342,18 @@
 <MudDialog @bind-Visible="_buscarEmpleadoVisible" Options="@(new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true })">
     <TitleContent>
         <MudText Typo="Typo.h6">
-            <MudIcon Icon="@Icons.Material.Filled.PersonSearch" Class="mr-2" Style="vertical-align: middle;" />
+            <MudIcon Icon="@Icons.Material.Filled.PersonSearch" Class="mr-1" Style="vertical-align: middle;" />
             Buscar Empleado
         </MudText>
     </TitleContent>
     <DialogContent>
-        <MudTextField T="string" @bind-Value="_busquedaEmpleadoTexto" Placeholder="Buscar por nombre, nómina o RFC..."
+        <MudTextField T="string" @bind-Value="_busquedaEmpleadoTexto" Placeholder="Buscar por nombre o RFC..."
                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-                      Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" Class="mb-4" />
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" Class="mb-1" />
 
         <MudTable Items="@_empleadosFiltrados" Dense="true" Hover="true" Bordered="true"
                   OnRowClick="SeleccionarEmpleadoDesdeTabla" T="EmpleadoListDto" Style="cursor: pointer;">
-            <HeaderContent>
+            <HeaderContent >
                 <MudTh>ID</MudTh>
                 <MudTh>Nómina</MudTh>
                 <MudTh>Nombre</MudTh>
@@ -313,7 +368,13 @@
                 <MudTd>@context.EmpresaNombre</MudTd>
             </RowTemplate>
         </MudTable>
+        
+        <MudDivider Class="mt-3" />
+        <MudText Typo="Typo.body2" Class="mt-2" Align="Align.Right">
+            <strong>Total de registros:</strong> @_empleadosFiltrados.Count()
+        </MudText>
     </DialogContent>
+    
 </MudDialog>
 
 @* ── Diálogo: Confirmar Guardado ── *@
@@ -382,13 +443,7 @@
     private List<EmpresaListDto> _fondeadoras = [];
     private List<TipoPrestamoDto> _tiposPrestamo = [];
     private List<TipoPagoDto> _tiposPago = [];
-    private List<CondicionCreditoDto> _condicionesCredito = [];
-    private int _condicionCreditoId;
-
-    private IEnumerable<CondicionCreditoDto> _condicionesCreditoFiltradas =>
-        _model.FondeadoraId > 0
-            ? _condicionesCredito.Where(c => c.FondeadoraId == _model.FondeadoraId)
-            : _condicionesCredito;
+    // private int _condicionCreditoId;
 
     // ── Empleado ──
     private int _empleadoIdBuscar;
@@ -409,13 +464,22 @@
     private AmortizacionPreviewResultDto? _preview;
     private bool _simulando;
 
+    // ── Pagos Adicionales ──
+    private List<PagoAdicionalCapitalDto> _pagosAdicionales = [];
+
     // ── Form ──
     private MudForm _form = null!;
     private bool _formValid;
     private bool _saving;
     private bool _confirmarGuardadoVisible;
 
-    private bool PuedeSimular => _model.MontoAprobado > 0 && _model.PlazoMeses > 0 && _tasaInteresAnual > 0;
+    private bool PuedeSimular => 
+        _model.FondeadoraId > 0 && 
+        _model.EmpleadoId > 0 && 
+        _model.TipoPrestamoId > 0 && 
+        _model.MontoAprobado > 0 && 
+        _model.PlazoMeses > 0 && 
+        _tasaInteresAnual > 0;
 
     protected override async Task OnInitializedAsync()
     {
@@ -425,15 +489,13 @@
             var tiposPrestamoTask = CatalogosApi.GetTiposPrestamoAsync();
             var tiposPagoTask = CatalogosApi.GetTiposPagoAsync();
             var empleadosTask = EmpleadosApi.GetEmpleadosAsync();
-            var condicionesTask = CatalogosApi.GetCondicionesCreditoAsync();
 
-            await Task.WhenAll(empresasTask, tiposPrestamoTask, tiposPagoTask, empleadosTask, condicionesTask);
+            await Task.WhenAll(empresasTask, tiposPrestamoTask, tiposPagoTask, empleadosTask);
 
             _fondeadoras = empresasTask.Result;
             _tiposPrestamo = tiposPrestamoTask.Result;
             _tiposPago = tiposPagoTask.Result;
             _todosEmpleados = empleadosTask.Result;
-            _condicionesCredito = condicionesTask.Result;
 
             if (_tiposPago.Count > 0)
                 _model.TipoPagoId = _tiposPago[0].TipoPagoId;
@@ -490,6 +552,7 @@
 
     private async Task SeleccionarEmpleadoDesdeTabla(TableRowClickEventArgs<EmpleadoListDto> args)
     {
+        if (args.Item == null) return;
         _buscarEmpleadoVisible = false;
         _empleadoIdBuscar = args.Item.EmpleadoId;
         await CargarEmpleadoPorId(args.Item.EmpleadoId);
@@ -538,7 +601,8 @@
                 TasaInteresAnual = _tasaInteresAnual,
                 FechaEntrega = _fechaEntrega ?? DateTime.Today,
                 IntervaloDiario = tipoPagoSeleccionado?.IntervaloDiario ?? 30,
-                FrecuenciaAnual = tipoPagoSeleccionado?.FrecuenciaAnual ?? 12
+                FrecuenciaAnual = tipoPagoSeleccionado?.FrecuenciaAnual ?? 12,
+                PagosAdicionales = _pagosAdicionales
             };
 
             _preview = await PrestamosApi.SimularAmortizacionAsync(dto);
@@ -562,14 +626,8 @@
 
     private async Task GuardarPrestamo()
     {
-        await _form.Validate();
+        await _form.ValidateAsync();
         if (!_form.IsValid) return;
-
-        if (_model.EmpleadoId <= 0)
-        {
-            Snackbar.Add("Debe seleccionar un empleado.", Severity.Warning);
-            return;
-        }
 
         if (_model.FondeadoraId <= 0)
         {
@@ -577,9 +635,33 @@
             return;
         }
 
-        if (_condicionCreditoId <= 0)
+        if (_model.EmpleadoId <= 0)
         {
-            Snackbar.Add("Debe seleccionar una condición de crédito.", Severity.Warning);
+            Snackbar.Add("Debe seleccionar un empleado.", Severity.Warning);
+            return;
+        }
+
+        if (_model.TipoPrestamoId <= 0)
+        {
+            Snackbar.Add("Debe seleccionar un tipo de préstamo.", Severity.Warning);
+            return;
+        }
+
+        if (_model.MontoAprobado <= 0)
+        {
+            Snackbar.Add("El monto solicitado debe ser mayor a cero.", Severity.Warning);
+            return;
+        }
+
+        if (_model.PlazoMeses <= 0)
+        {
+            Snackbar.Add("El plazo debe ser mayor a cero.", Severity.Warning);
+            return;
+        }
+
+        if (_tasaInteresAnual <= 0)
+        {
+            Snackbar.Add("La tasa de interés debe ser mayor a cero.", Severity.Warning);
             return;
         }
 
@@ -597,16 +679,17 @@
         _saving = true;
         try
         {
-            var solicitudDto = new CrearSolicitudDto
+            _model.Amortizaciones = _preview?.TablaAmortizacion.Select(a => new AmortizacionDto
             {
-                EmpleadoId = _model.EmpleadoId,
-                CondicionCreditoId = _condicionCreditoId,
-                MontoSolicitado = _model.MontoAprobado,
-                PlazoMeses = _model.PlazoMeses,
-                Motivo = string.IsNullOrWhiteSpace(_model.DestinoCredito) ? "Préstamo personal" : _model.DestinoCredito
-            };
-
-            var result = await SolicitudesApi.CrearSolicitudAsync(solicitudDto);
+                NumeroPago = a.NumeroPago,
+                FechaPago = a.FechaPago,
+                ImportePago = a.ImportePago,
+                ImporteInteres = a.ImporteInteres,
+                ImporteCapital = a.ImporteCapital,
+                PagoExtra = a.PagoExtra,
+                SaldoFinal = a.SaldoFinal
+            }).ToList() ?? [];
+            var result = await PrestamosApi.CrearAsync(_model);
             if (result)
             {
                 Snackbar.Add("¡Solicitud registrada exitosamente! Será revisada para aprobación.", Severity.Success);
@@ -647,10 +730,30 @@
         _empleadoIdBuscar = 0;
         _preview = null;
         _prestamoId = 0;
+        _pagosAdicionales = [];
 
         if (_tiposPago.Count > 0)
             _model.TipoPagoId = _tiposPago[0].TipoPagoId;
 
         StateHasChanged();
+    }
+
+    // ── Pagos Adicionales ──
+
+    private void AgregarPagoAdicional()
+    {
+        _pagosAdicionales.Add(new PagoAdicionalCapitalDto
+        {
+            NumeroPago = 1,
+            Descripcion = string.Empty,
+            Fecha = DateTime.Today,
+            Monto = 0
+        });
+    }
+
+    private void EliminarPagoAdicional(int index)
+    {
+        if (index >= 0 && index < _pagosAdicionales.Count)
+            _pagosAdicionales.RemoveAt(index);
     }
 }

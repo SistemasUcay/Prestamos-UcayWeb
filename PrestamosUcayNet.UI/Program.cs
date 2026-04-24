@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
@@ -23,12 +24,16 @@ builder.Services.AddAuthorizationCore();
 
 // Servicios de la aplicación
 builder.Services.AddScoped<AuthService>();
-builder.Services.AddScoped<SolicitudesApiService>();
 builder.Services.AddScoped<PrestamosApiService>();
 builder.Services.AddScoped<UsuariosApiService>();
 builder.Services.AddScoped<EmpresasApiService>();
 builder.Services.AddScoped<EmpleadosApiService>();
 builder.Services.AddScoped<CatalogosApiService>();
 builder.Services.AddScoped<ParametrosApiService>();
+
+// Formato numérico y de fechas de México
+var culturaMx = new CultureInfo("es-MX");
+CultureInfo.DefaultThreadCurrentCulture = culturaMx;
+CultureInfo.DefaultThreadCurrentUICulture = culturaMx;
 
 await builder.Build().RunAsync();

@@ -94,20 +94,4 @@ public class PrestamosController : ControllerBase
         if (!result) return BadRequest("No se pudo cancelar el préstamo.");
         return Ok();
     }
-
-    [HttpPost("registrar-pago")]
-    public async Task<IActionResult> RegistrarPago(RegistrarPagoDto dto)
-    {
-        var result = await _prestamosService.RegistrarPagoAsync(dto);
-        if (!result) return BadRequest("No se pudo registrar el pago.");
-        return Ok();
-    }
-
-    [HttpPost("pausar")]
-    public async Task<IActionResult> Pausar(SolicitudPausaDto dto)
-    {
-        var result = await _prestamosService.SolicitarPausaAsync(dto);
-        if (!result) return BadRequest("No se pudo aplicar la pausa.");
-        return Ok();
-    }
 }

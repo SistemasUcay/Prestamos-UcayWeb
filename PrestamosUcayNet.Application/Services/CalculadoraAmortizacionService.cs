@@ -237,23 +237,52 @@ public class CalculadoraAmortizacionService : ICalculadoraAmortizacionService
 
         cuota = Math.Round(cuota, 2);
 
+        // Indexar pagos adicionales por número de pago para acceso rápido
+        var pagosAdicionalesPorNumero = new Dictionary<int, decimal>();
+        decimal totalPagosAdicionales = 0;
+        if (dto.PagosAdicionales is { Count: > 0 })
+        {
+            foreach (var pa in dto.PagosAdicionales)
+            {
+                if (pa.NumeroPago >= 1 && pa.NumeroPago <= n && pa.Monto > 0)
+                {
+                    if (!pagosAdicionalesPorNumero.ContainsKey(pa.NumeroPago))
+                        pagosAdicionalesPorNumero[pa.NumeroPago] = 0;
+                    pagosAdicionalesPorNumero[pa.NumeroPago] += pa.Monto;
+                    totalPagosAdicionales += pa.Monto;
+                }
+            }
+        }
+
         var tabla = new List<AmortizacionDto>();
         decimal saldoAnterior = P;
         decimal totalIntereses = 0;
         decimal totalCapital = 0;
+        decimal totalExtras = 0;
 
         for (int k = 1; k <= n; k++)
         {
+            if (saldoAnterior <= 0) break;
+
             decimal interesCuota = Math.Round(saldoAnterior * tasaPorPeriodo, 2);
             decimal capitalCuota = Math.Round(cuota - interesCuota, 2);
 
-            if (k == n)
+            if (k == n || capitalCuota >= saldoAnterior)
             {
                 capitalCuota = saldoAnterior;
                 cuota = capitalCuota + interesCuota;
             }
 
             decimal saldoFinal = Math.Round(saldoAnterior - capitalCuota, 2);
+
+            // Aplicar pago adicional a capital en este período
+            decimal pagoExtra = 0;
+            if (pagosAdicionalesPorNumero.TryGetValue(k, out decimal extraMonto))
+            {
+                pagoExtra = Math.Min(extraMonto, saldoFinal);
+                saldoFinal = Math.Round(saldoFinal - pagoExtra, 2);
+                totalExtras += pagoExtra;
+            }
 
             tabla.Add(new AmortizacionDto
             {
@@ -262,6 +291,7 @@ public class CalculadoraAmortizacionService : ICalculadoraAmortizacionService
                 ImportePago = Math.Round(cuota, 2),
                 ImporteCapital = capitalCuota,
                 ImporteInteres = interesCuota,
+                PagoExtra = pagoExtra,
                 SaldoFinal = saldoFinal,
                 Pagado = false
             });
@@ -277,8 +307,8 @@ public class CalculadoraAmortizacionService : ICalculadoraAmortizacionService
         return new AmortizacionPreviewResultDto
         {
             TablaAmortizacion = tabla,
-            PagosAdicionalesCapital = 0,
-            CapitalAmortizable = P,
+            PagosAdicionalesCapital = totalExtras,
+            CapitalAmortizable = P - totalExtras,
             TotalIntereses = Math.Round(totalIntereses, 2),
             TotalPagar = Math.Round(totalCapital + totalIntereses, 2),
             TasaMensual = Math.Round(dto.TasaInteresAnual / 12m, 2),

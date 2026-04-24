@@ -124,8 +124,6 @@ public partial class Empleado
 
     public virtual Departamento Departamento { get; set; } = null!;
 
-    public virtual ICollection<SolicitudPrestamo> Solicitudes { get; set; } = new List<SolicitudPrestamo>();
-
     public virtual ICollection<Prestamo> Prestamos { get; set; } = new List<Prestamo>();
 
     public virtual Puesto Puesto { get; set; } = null!;

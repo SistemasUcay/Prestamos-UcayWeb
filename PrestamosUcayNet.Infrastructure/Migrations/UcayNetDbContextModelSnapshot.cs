@@ -639,7 +639,7 @@ namespace PrestamosUcayNet.Infrastructure.Migrations
                     b.Property<decimal>("SaldoPendiente")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<int>("SolicitudId")
+                    b.Property<int?>("SolicitudId")
                         .HasColumnType("int");
 
                     b.Property<decimal>("SueldoLaboral")
@@ -866,9 +866,9 @@ namespace PrestamosUcayNet.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TipoPrestamoId"));
 
-                    b.Property<int?>("Clasificacion")
+                    b.Property<int>("Clasificacion")
                         .HasColumnType("int")
-                        .HasComment("Clasificación del Préstamo [1]:Corto Plazo [2]:Largo  Plazo [3]:Préstamo Hipotecario");
+                        .HasComment("Clasificación del Tipo de Préstamo [1]:Corto Plazo [2]:Largo Plazo [3]:Préstamo Hipotecario [4]:Préstamo Directo");
 
                     b.Property<string>("Descripcion")
                         .IsRequired()
@@ -1150,7 +1150,6 @@ namespace PrestamosUcayNet.Infrastructure.Migrations
                     b.HasOne("PrestamosUcayNet.Domain.Entities.SolicitudPrestamo", "Solicitud")
                         .WithMany("Prestamos")
                         .HasForeignKey("SolicitudId")
-                        .IsRequired()
                         .HasConstraintName("FK_Prestamos_Solicitud");
 
                     b.HasOne("PrestamosUcayNet.Domain.Entities.TiposPago", "TipoPago")

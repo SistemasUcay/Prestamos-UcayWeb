@@ -4,83 +4,9 @@ using System.ComponentModel.DataAnnotations;
 
 namespace PrestamosUcayNet.Application.DTOs;
 
-public class SolicitudDetalleDto
-{
-    public int Id { get; set; }
-    public string NombreEmpleado { get; set; } = null!;
-    public string NombreEmpresaEmpleadora { get; set; } = null!;
-    public string NombreFondeadora { get; set; } = null!;
-    public string NombreProducto { get; set; } = null!;
-    public decimal MontoSolicitado { get; set; }
-    public int PlazoMeses { get; set; }
-    public string Motivo { get; set; } = null!;
-    public string EstadoSolicitud { get; set; } = null!;
-    public DateTime FechaSolicitud { get; set; }
-    public string? MotivoRechazo { get; set; }
-    public string? MotivoCancelacion { get; set; }
-}
-
-public class AprobarSolicitudDto
-{
-    [Required]
-    [Range(1, int.MaxValue)]
-    public int SolicitudId { get; set; }
-
-    [Required]
-    [Range(0.01, double.MaxValue)]
-    public decimal MontoAprobado { get; set; }
-
-    [MaxLength(500)]
-    public string? Notas { get; set; }
-}
-
-public class RechazarSolicitudDto
-{
-    [Required]
-    [Range(1, int.MaxValue)]
-    public int SolicitudId { get; set; }
-
-    [Required]
-    [MaxLength(500)]
-    public string MotivoRechazo { get; set; } = null!;
-}
-
-public class CancelarSolicitudDto
-{
-    [Required]
-    [Range(1, int.MaxValue)]
-    public int SolicitudId { get; set; }
-
-    [Required]
-    [MaxLength(500)]
-    public string MotivoCancelacion { get; set; } = null!;
-}
-
-public class EditarSolicitudDto
-{
-    [Required]
-    [Range(1, int.MaxValue)]
-    public int SolicitudId { get; set; }
-
-    [Required]
-    [Range(1, int.MaxValue)]
-    public int CondicionCreditoId { get; set; }
-
-    [Required]
-    [Range(0.01, double.MaxValue, ErrorMessage = "El monto solicitado debe ser mayor a cero.")]
-    public decimal MontoSolicitado { get; set; }
-
-    [Required]
-    [Range(1, 360, ErrorMessage = "El plazo debe ser entre 1 y 360 meses.")]
-    public int PlazoMeses { get; set; }
-
-    [MaxLength(500)]
-    public string Motivo { get; set; } = string.Empty;
-}
-
 public class ActivarPrestamoDto
 {
-    public int SolicitudId { get; set; }
+    public int PrestamoId { get; set; }
     public DateTime FechaEntrega { get; set; }
     public string MetodoEntrega { get; set; } = null!; // Transferencia, Cheque, Efectivo
     public string Referencia { get; set; } = null!;
@@ -195,28 +121,20 @@ public class AmortizacionDto
     public decimal ImportePago { get; set; }
     public decimal ImporteCapital { get; set; }
     public decimal ImporteInteres { get; set; }
+    public decimal PagoExtra { get; set; }
     public decimal SaldoFinal { get; set; }
     public bool Pagado { get; set; }
 }
 
-public class RegistrarPagoDto
+/// <summary>
+/// Pago adicional a capital que se aplica en un número de pago específico
+/// </summary>
+public class PagoAdicionalCapitalDto
 {
-    public int PrestamoId { get; set; }
+    public int NumeroPago { get; set; }
+    public string Descripcion { get; set; } = string.Empty;
+    public DateTime Fecha { get; set; }
     public decimal Monto { get; set; }
-    public DateTime FechaPago { get; set; }
-    public string TipoPago { get; set; } = "Ordinario"; // Ordinario, Extraordinario, Liquidacion
-    public string MetodoPago { get; set; } = "Nomina";
-    public string? Referencia { get; set; }
-    
-    // Si es extraordinario
-    public bool ReducirPlazo { get; set; } = true;
-}
-
-public class SolicitudPausaDto
-{
-    public int PrestamoId { get; set; }
-    public int MesesPausa { get; set; }
-    public string Motivo { get; set; } = null!;
 }
 
 /// <summary>
@@ -270,6 +188,10 @@ public class PrestamoCreateDto
     public DateTime FechaEntrega { get; set; } = DateTime.Today;
 
     public int? EmpleadoIdAval { get; set; }
+
+    [Required]
+    public List<AmortizacionDto> Amortizaciones { get; set; } = [];
+      
 }
 
 /// <summary>
@@ -300,6 +222,11 @@ public class SimularAmortizacionDto
     /// Número de pagos que realiza el empleado por año (ej: 52=semanal, 26=catorcenal, 24=quincenal, 12=mensual)
     /// </summary>
     public int FrecuenciaAnual { get; set; } = 12;
+
+    /// <summary>
+    /// Lista de pagos adicionales a capital que se aplican en números de pago específicos
+    /// </summary>
+    public List<PagoAdicionalCapitalDto> PagosAdicionales { get; set; } = [];
 }
 
 /// <summary>

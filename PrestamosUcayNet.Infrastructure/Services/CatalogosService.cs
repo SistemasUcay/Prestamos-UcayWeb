@@ -181,29 +181,8 @@ public class CatalogosService : ICatalogosService
         _context.TiposPagos.Remove(t);
         return await _context.SaveChangesAsync() > 0;
     }
-
-    public async Task<IEnumerable<CondicionCreditoDto>> ObtenerCondicionesCreditoActivasAsync()
-    {
-        return await _context.CondicionesCredito
-            .Where(c => c.Activo)
-            .Include(c => c.Fondeadora)
-            .OrderBy(c => c.NombreProducto)
-            .ProjectTo<CondicionCreditoDto>(_mapper.ConfigurationProvider)
-            .ToListAsync();
-    }
-
-    public async Task<IEnumerable<CondicionCreditoDto>> ObtenerCondicionesCreditoPorFondeadoraAsync(int fondeadoraId)
-    {
-        return await _context.CondicionesCredito
-            .Where(c => c.Activo && c.FondeadoraId == fondeadoraId)
-            .Include(c => c.Fondeadora)
-            .OrderBy(c => c.NombreProducto)
-            .ProjectTo<CondicionCreditoDto>(_mapper.ConfigurationProvider)
-            .ToListAsync();
-    }
-
+        
     // --- Tipos de Préstamo ---
-
     public async Task<IEnumerable<TipoPrestamoDto>> ObtenerTiposPrestamoAsync()
     {
         return await _context.TipoPrestamos

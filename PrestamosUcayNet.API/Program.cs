@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -12,6 +13,11 @@ using PrestamosUcayNet.Application.Interfaces;
 using PrestamosUcayNet.Application.Mappings;
 using PrestamosUcayNet.Application.Services;
 using InfraServices = PrestamosUcayNet.Infrastructure.Services;
+
+// Formato numérico y de fechas de México
+var culturaMx = new CultureInfo("es-MX");
+CultureInfo.DefaultThreadCurrentCulture = culturaMx;
+CultureInfo.DefaultThreadCurrentUICulture = culturaMx;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -75,7 +81,6 @@ builder.Services.AddAutoMapper(cfg => cfg.AddMaps(typeof(EmpleadoProfile).Assemb
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<ICalculadoraAmortizacionService, CalculadoraAmortizacionService>();
-builder.Services.AddScoped<ISolicitudesService, InfraServices.SolicitudesService>();
 builder.Services.AddScoped<IUsuariosService, UsuariosService>();
 builder.Services.AddScoped<IEmpresasService, EmpresasService>();
 builder.Services.AddScoped<IEmpleadosService, EmpleadosService>();

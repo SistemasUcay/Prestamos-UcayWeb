@@ -25,10 +25,7 @@ public interface ICatalogosService
     Task<bool> CrearTipoPagoAsync(TipoPagoDto dto);
     Task<bool> ActualizarTipoPagoAsync(TipoPagoDto dto);
     Task<bool> EliminarTipoPagoAsync(int id);
-
-    Task<IEnumerable<CondicionCreditoDto>> ObtenerCondicionesCreditoActivasAsync();
-    Task<IEnumerable<CondicionCreditoDto>> ObtenerCondicionesCreditoPorFondeadoraAsync(int fondeadoraId);
-
+    
     Task<IEnumerable<TipoPrestamoDto>> ObtenerTiposPrestamoAsync();
     Task<TipoPrestamoDto?> ObtenerTipoPrestamoPorIdAsync(int id);
     Task<bool> CrearTipoPrestamoAsync(TipoPrestamoDto dto);

@@ -139,21 +139,7 @@ public class CatalogosController : ControllerBase
         if (!result) return BadRequest("No se pudo eliminar. Verifique que no tenga empleados o préstamos asociados.");
         return Ok();
     }
-
-    // --- Condiciones de Crédito ---
-
-    [HttpGet("condiciones-credito")]
-    public async Task<ActionResult<IEnumerable<CondicionCreditoDto>>> GetCondicionesCredito()
-    {
-        return Ok(await _catalogosService.ObtenerCondicionesCreditoActivasAsync());
-    }
-
-    [HttpGet("condiciones-credito/fondeadora/{fondeadoraId}")]
-    public async Task<ActionResult<IEnumerable<CondicionCreditoDto>>> GetCondicionesCreditoPorFondeadora(int fondeadoraId)
-    {
-        return Ok(await _catalogosService.ObtenerCondicionesCreditoPorFondeadoraAsync(fondeadoraId));
-    }
-
+  
     // --- Tipos de Préstamo ---
 
     [HttpGet("tipos-prestamo")]

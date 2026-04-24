@@ -47,16 +47,6 @@ public interface IPrestamosService
     Task<bool> CancelarPrestamoAsync(int prestamoId);
 
     /// <summary>
-    /// Registra un pago al préstamo
-    /// </summary>
-    Task<bool> RegistrarPagoAsync(RegistrarPagoDto dto);
-
-    /// <summary>
-    /// Solicita una pausa de cuotas del préstamo
-    /// </summary>
-    Task<bool> SolicitarPausaAsync(SolicitudPausaDto dto);
-
-    /// <summary>
     /// Simula la tabla de amortización para previsualización sin persistir
     /// </summary>
     AmortizacionPreviewResultDto SimularAmortizacion(SimularAmortizacionDto dto);

@@ -16,11 +16,6 @@ public partial class Prestamo
     public DateTime FechaSolicitud { get; set; }
 
     /// <summary>
-    /// ID de la Solicitud asociada
-    /// </summary>
-    public int SolicitudId { get; set; }
-
-    /// <summary>
     /// Fuente de Fondeo Proveedor del capital para el financiamiento
     /// </summary>
     public int FuenteFondeoId { get; set; }
@@ -142,13 +137,7 @@ public partial class Prestamo
 
     public virtual DatosEmpresa FuenteFondeo { get; set; } = null!;
 
-    public virtual SolicitudPrestamo Solicitud { get; set; } = null!;
-
     public virtual ICollection<PrestamosAmortizacione> PrestamosAmortizaciones { get; set; } = new List<PrestamosAmortizacione>();
-
-    public virtual ICollection<Pago> Pagos { get; set; } = new List<Pago>();
-
-    public virtual ICollection<PausaPrestamo> Pausas { get; set; } = new List<PausaPrestamo>();
 
     public virtual TiposPago TipoPago { get; set; } = null!;
 

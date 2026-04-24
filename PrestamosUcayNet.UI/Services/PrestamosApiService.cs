@@ -91,22 +91,4 @@ public class PrestamosApiService
         var response = await _http.PostAsync($"api/prestamos/{prestamoId}/cancelar", null);
         return response.IsSuccessStatusCode;
     }
-
-    /// <summary>
-    /// Registra un pago al préstamo
-    /// </summary>
-    public async Task<bool> RegistrarPagoAsync(RegistrarPagoDto dto)
-    {
-        var response = await _http.PostAsJsonAsync("api/prestamos/registrar-pago", dto);
-        return response.IsSuccessStatusCode;
-    }
-
-    /// <summary>
-    /// Solicita pausa de cuotas del préstamo
-    /// </summary>
-    public async Task<bool> PausarAsync(SolicitudPausaDto dto)
-    {
-        var response = await _http.PostAsJsonAsync("api/prestamos/pausar", dto);
-        return response.IsSuccessStatusCode;
-    }
 }

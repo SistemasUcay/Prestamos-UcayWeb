@@ -4,7 +4,6 @@
 @using PrestamosUcayNet.UI.Services
 @using MudBlazor
 @attribute [Authorize(Roles = "Administrador,Gerente,Contador")]
-@inject SolicitudesApiService SolicitudesApi
 @inject PrestamosApiService PrestamosApi
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -22,24 +21,24 @@
 
 <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6" @bind-ActivePanelIndex="_activeTab">
 
-    @* ── TAB 1: Pendientes de Entrega ── *@
-    <MudTabPanel Text="Pendientes de Entrega" Icon="@Icons.Material.Filled.PendingActions" BadgeData="@_aprobadas.Count" BadgeColor="Color.Warning">
-        @if (_loadingAprobados)
+    @* ── TAB 1: Pendientes de Entrega (Préstamos en Evaluación) ── *@
+    <MudTabPanel Text="Pendientes de Entrega" Icon="@Icons.Material.Filled.PendingActions" BadgeData="@_enEvaluacion.Count" BadgeColor="Color.Warning">
+        @if (_loadingEvaluacion)
         {
             <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
         }
-        else if (_aprobadas.Count == 0)
+        else if (_enEvaluacion.Count == 0)
         {
-            <MudAlert Severity="Severity.Info" Class="my-4">No hay solicitudes aprobadas pendientes de entrega.</MudAlert>
+            <MudAlert Severity="Severity.Info" Class="my-4">No hay préstamos aprobados pendientes de entrega.</MudAlert>
         }
         else
         {
-            <MudDataGrid T="SolicitudDetalleDto" Items="@_aprobadas" Hover="true" Bordered="true" Striped="true" Dense="true">
+            <MudDataGrid T="PrestamoListDto" Items="@_enEvaluacion" Hover="true" Bordered="true" Striped="true" Dense="true">
                 <Columns>
-                    <PropertyColumn Property="x => x.FechaSolicitud" Title="Fecha Aprobación" Format="dd/MM/yyyy" />
+                    <PropertyColumn Property="x => x.FechaSolicitud" Title="Fecha Solicitud" Format="dd/MM/yyyy" />
                     <PropertyColumn Property="x => x.NombreEmpleado" Title="Empleado" />
                     <PropertyColumn Property="x => x.NombreFondeadora" Title="Fondeadora" />
-                    <PropertyColumn Property="x => x.MontoSolicitado" Title="Monto a Entregar" Format="C2" />
+                    <PropertyColumn Property="x => x.MontoAprobado" Title="Monto a Entregar" Format="C2" />
                     <PropertyColumn Property="x => x.PlazoMeses" Title="Plazo (meses)" />
                     <TemplateColumn Title="Acciones" CellStyle="width: 160px;">
                         <CellTemplate>
@@ -76,13 +75,7 @@
                         <MudSelectItem T="string" Value="@("S")">Suspendido</MudSelectItem>
                     </MudSelect>
                 </MudItem>
-                <MudItem xs="12" md="5" Class="d-flex justify-end gap-2">
-                    <MudButton Variant="Variant.Filled" Color="Color.Success"
-                               StartIcon="@Icons.Material.Filled.AddCircle"
-                               OnClick="@(() => Navigation.NavigateTo("/captura-prestamo"))"
-                               Style="text-transform: none;">
-                               Nuevo Préstamo
-                    </MudButton>
+                <MudItem xs="12" md="5" Class="d-flex justify-end gap-2">                   
                     <MudButton Variant="Variant.Outlined" Color="Color.Primary"
                         StartIcon="@Icons.Material.Filled.Refresh"
                         OnClick="CargarPrestamos" Style="text-transform: none;">
@@ -145,14 +138,14 @@
     <TitleContent>
         <MudText Typo="Typo.h6">
             <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="mr-2" Style="vertical-align: middle;" Color="Color.Success" />
-            Activar Préstamo — Solicitud #@_selectedSolicitud?.Id
+            Activar Préstamo #@_selectedPrestamo?.PrestamoId
         </MudText>
     </TitleContent>
     <DialogContent>
-        @if (_selectedSolicitud is not null)
+        @if (_selectedPrestamo is not null)
         {
             <MudAlert Severity="Severity.Info" Class="mb-4">
-                <b>@_selectedSolicitud.NombreEmpleado</b> — Monto: <b>@_selectedSolicitud.MontoSolicitado.ToString("C2")</b> — Plazo: <b>@_selectedSolicitud.PlazoMeses meses</b>
+                <b>@_selectedPrestamo.NombreEmpleado</b> — Monto: <b>@_selectedPrestamo.MontoAprobado.ToString("C2")</b> — Plazo: <b>@_selectedPrestamo.PlazoMeses meses</b>
             </MudAlert>
         }
         <MudForm @ref="_formActivacion">
@@ -270,9 +263,9 @@
 
 @code {
     // ── Data ──
-    private List<SolicitudDetalleDto> _aprobadas = new();
+    private List<PrestamoListDto> _enEvaluacion = new();
     private List<PrestamoListDto> _prestamos = new();
-    private bool _loadingAprobados = true;
+    private bool _loadingEvaluacion = true;
     private bool _loadingPrestamos = true;
     private bool _saving;
     private int _activeTab;
@@ -283,7 +276,7 @@
 
     // ── Activación ──
     private bool _activacionVisible;
-    private SolicitudDetalleDto? _selectedSolicitud;
+    private PrestamoListDto? _selectedPrestamo;
     private MudForm _formActivacion = null!;
     private DateTime? _fechaEntrega = DateTime.Today;
     private string _metodoEntrega = "Transferencia";
@@ -304,23 +297,23 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await Task.WhenAll(CargarAprobadas(), CargarPrestamos());
+        await Task.WhenAll(CargarEnEvaluacion(), CargarPrestamos());
     }
 
-    private async Task CargarAprobadas()
+    private async Task CargarEnEvaluacion()
     {
-        _loadingAprobados = true;
+        _loadingEvaluacion = true;
         try
         {
-            _aprobadas = await SolicitudesApi.GetAprobadasAsync();
+            _enEvaluacion = await PrestamosApi.GetPorEstadoAsync("E");
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error al cargar solicitudes aprobadas: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Error al cargar préstamos en evaluación: {ex.Message}", Severity.Error);
         }
         finally
         {
-            _loadingAprobados = false;
+            _loadingEvaluacion = false;
         }
     }
 
@@ -360,9 +353,9 @@
 
     // ── Activación ──
 
-    private void AbrirActivacion(SolicitudDetalleDto item)
+    private void AbrirActivacion(PrestamoListDto item)
     {
-        _selectedSolicitud = item;
+        _selectedPrestamo = item;
         _fechaEntrega = DateTime.Today;
         _metodoEntrega = "Transferencia";
         _referencia = "";
@@ -372,7 +365,7 @@
 
     private async Task ConfirmarActivacion()
     {
-        await _formActivacion.Validate();
+        await _formActivacion.ValidateAsync();
         if (!_formActivacion.IsValid) return;
 
         _saving = true;
@@ -380,7 +373,7 @@
         {
             var result = await PrestamosApi.ActivarAsync(new ActivarPrestamoDto
             {
-                SolicitudId = _selectedSolicitud!.Id,
+                PrestamoId = _selectedPrestamo!.PrestamoId,
                 FechaEntrega = _fechaEntrega!.Value,
                 MetodoEntrega = _metodoEntrega,
                 Referencia = _referencia,
@@ -391,7 +384,7 @@
             {
                 Snackbar.Add("¡Préstamo activado y tabla de amortización generada!", Severity.Success);
                 _activacionVisible = false;
-                await Task.WhenAll(CargarAprobadas(), CargarPrestamos());
+                await Task.WhenAll(CargarEnEvaluacion(), CargarPrestamos());
             }
             else
             {

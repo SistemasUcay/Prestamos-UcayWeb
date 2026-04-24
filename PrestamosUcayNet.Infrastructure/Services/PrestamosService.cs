@@ -33,27 +33,9 @@ public class PrestamosService : IPrestamosService
     {
         var empleado = await _context.Empleados.FindAsync(dto.EmpleadoId)
             ?? throw new InvalidOperationException("El empleado no existe.");
-
-        // Auto-crear solicitud asociada (SolicitudId es FK no-nullable)
-        var solicitud = new SolicitudPrestamo
-        {
-            EmpleadoId = dto.EmpleadoId,
-            EmpresaEmpleadoraId = empleado.EmpresaId,
-            FondeadoraId = dto.FondeadoraId,
-            CondicionCreditoId = dto.CondicionCreditoId ?? 0,
-            MontoSolicitado = dto.MontoAprobado,
-            PlazoMeses = dto.PlazoMeses,
-            Motivo = dto.DestinoCredito,
-            EstadoSolicitud = "Entregada",
-            FechaSolicitud = DateTime.Now
-        };
-
-        _context.SolicitudesPrestamo.Add(solicitud);
-        await _context.SaveChangesAsync();
-
+                
         var nuevoPrestamo = new Prestamo
         {
-            SolicitudId = solicitud.Id,
             EmpleadoId = dto.EmpleadoId,
             FuenteFondeoId = dto.FondeadoraId,
             TipoPrestamoId = dto.TipoPrestamoId,
@@ -130,47 +112,27 @@ public class PrestamosService : IPrestamosService
     /// <inheritdoc />
     public async Task<bool> ActivarPrestamoAsync(ActivarPrestamoDto dto)
     {
-        var solicitud = await _context.SolicitudesPrestamo
-            .Include(s => s.Empleado)
-            .Include(s => s.CondicionCredito)
-            .FirstOrDefaultAsync(s => s.Id == dto.SolicitudId);
+        var prestamo = await _context.Prestamos
+            .Include(p => p.Empleado)
+            .FirstOrDefaultAsync(p => p.PrestamoId == dto.PrestamoId);
 
-        if (solicitud is null || solicitud.EstadoSolicitud != "Aprobada")
-            throw new InvalidOperationException("La solicitud no está aprobada para ser activada.");
+        if (prestamo is null || prestamo.Estado != "E")
+            throw new InvalidOperationException("El préstamo no está en evaluación para ser activado.");
 
-        var nuevoPrestamo = new Prestamo
-        {
-            SolicitudId = solicitud.Id,
-            EmpleadoId = solicitud.EmpleadoId,
-            FuenteFondeoId = solicitud.FondeadoraId,
-            MontoAprobado = solicitud.MontoSolicitado,
-            PlazoMeses = solicitud.PlazoMeses,
-            TasaInteresMensual = solicitud.CondicionCredito.TasaInteresMensual,
-            TasaInteresAnual = solicitud.CondicionCredito.TasaInteresMensual * 12,
-            FechaSolicitud = solicitud.FechaSolicitud,
-            FechaAprobado = DateTime.Now,
-            FechaDeposito = dto.FechaEntrega,
-            MetodoEntrega = dto.MetodoEntrega,
-            ReferenciaBancaria = dto.Referencia,
-            Folio = dto.Folio,
-            Estado = "A",
-            SueldoLaboral = solicitud.Empleado.SueldoLaboral ?? 0,
-            TipoPrestamoId = 1,
-            DestinoCredito = solicitud.Motivo,
-            TipoPagoId = solicitud.Empleado.TipoPagoId,
-            NumeroCuotas = solicitud.PlazoMeses,
-            InicioDescuento = dto.FechaEntrega.AddMonths(1),
-            FinalDescuento = dto.FechaEntrega.AddMonths(solicitud.PlazoMeses),
-            TotalPagar = 0,
-            SaldoPendiente = solicitud.MontoSolicitado
-        };
+        prestamo.Estado = "A"; // Activo
+        prestamo.FechaDeposito = dto.FechaEntrega;
+        prestamo.MetodoEntrega = dto.MetodoEntrega;
+        prestamo.ReferenciaBancaria = dto.Referencia;
 
-        _context.Prestamos.Add(nuevoPrestamo);
+        if (!string.IsNullOrEmpty(dto.Folio))
+            prestamo.Folio = dto.Folio;
 
-        solicitud.EstadoSolicitud = "Entregada";
+        prestamo.InicioDescuento = dto.FechaEntrega.AddMonths(1);
+        prestamo.FinalDescuento = dto.FechaEntrega.AddMonths(prestamo.PlazoMeses);
+
         await _context.SaveChangesAsync();
 
-        await _calculadora.GenerarYGuardarTablaAmortizacionAsync(nuevoPrestamo.PrestamoId);
+        await _calculadora.GenerarYGuardarTablaAmortizacionAsync(prestamo.PrestamoId);
 
         return true;
     }
@@ -204,68 +166,6 @@ public class PrestamosService : IPrestamosService
 
         prestamo.Estado = "C";
         return await _context.SaveChangesAsync() > 0;
-    }
-
-    /// <inheritdoc />
-    public async Task<bool> RegistrarPagoAsync(RegistrarPagoDto dto)
-    {
-        var prestamo = await _context.Prestamos.FindAsync(dto.PrestamoId);
-        if (prestamo is null || prestamo.Estado != "A") return false;
-
-        var nuevoPago = new Pago
-        {
-            PrestamoId = dto.PrestamoId,
-            MontoPagado = dto.Monto,
-            FechaPago = dto.FechaPago,
-            TipoPago = dto.TipoPago,
-            MetodoPago = dto.MetodoPago,
-            Notas = dto.Referencia
-        };
-
-        _context.Pagos.Add(nuevoPago);
-
-        prestamo.SaldoPendiente -= dto.Monto;
-        if (prestamo.SaldoPendiente <= 0)
-        {
-            prestamo.SaldoPendiente = 0;
-            prestamo.Estado = "P";
-        }
-
-        await _context.SaveChangesAsync();
-
-        if (dto.TipoPago == "Extraordinario")
-        {
-            await _calculadora.RecalcularYGuardarPorPagoAnticipadoAsync(
-                dto.PrestamoId,
-                dto.Monto,
-                !dto.ReducirPlazo);
-        }
-
-        return true;
-    }
-
-    /// <inheritdoc />
-    public async Task<bool> SolicitarPausaAsync(SolicitudPausaDto dto)
-    {
-        var prestamo = await _context.Prestamos.FindAsync(dto.PrestamoId);
-        if (prestamo is null || prestamo.Estado != "A") return false;
-
-        await _calculadora.PausarCuotasAsync(dto.PrestamoId, dto.MesesPausa);
-
-        var pausa = new PausaPrestamo
-        {
-            PrestamoId = dto.PrestamoId,
-            FechaInicio = DateTime.Now,
-            DuracionMeses = dto.MesesPausa,
-            Motivo = dto.Motivo,
-            FechaFin = DateTime.Now.AddMonths(dto.MesesPausa),
-            Activa = true
-        };
-
-        _context.PausasPrestamo.Add(pausa);
-        await _context.SaveChangesAsync();
-
-        return true;
     }
 
     /// <inheritdoc />

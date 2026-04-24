@@ -26,14 +26,6 @@ public partial class UcayNetDbContext : IdentityDbContext<UsuarioSistema>
 
     public virtual DbSet<Empleado> Empleados { get; set; }
 
-    public virtual DbSet<CondicionCredito> CondicionesCredito { get; set; }
-
-    public virtual DbSet<Pago> Pagos { get; set; }
-
-    public virtual DbSet<PausaPrestamo> PausasPrestamo { get; set; }
-
-    public virtual DbSet<SolicitudPrestamo> SolicitudesPrestamo { get; set; }
-
     public virtual DbSet<ParametrosGenerale> ParametrosGenerales { get; set; }
 
     public virtual DbSet<Prestamo> Prestamos { get; set; }
@@ -217,37 +209,6 @@ public partial class UcayNetDbContext : IdentityDbContext<UsuarioSistema>
                 .HasConstraintName("FK_Condiciones_DatosEmpresa");
         });
 
-        modelBuilder.Entity<SolicitudPrestamo>(entity =>
-        {
-            entity.ToTable("SolicitudesPrestamo", "Prestamos");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.MontoSolicitado).HasColumnType("money");
-            entity.Property(e => e.Motivo).HasMaxLength(500).IsUnicode(false);
-            entity.Property(e => e.EstadoSolicitud).HasMaxLength(20).IsUnicode(false);
-            entity.Property(e => e.MotivoRechazo).HasMaxLength(500).IsUnicode(false);
-            entity.Property(e => e.MotivoCancelacion).HasMaxLength(500).IsUnicode(false);
-
-            entity.HasOne(d => d.Empleado).WithMany(p => p.Solicitudes)
-                .HasForeignKey(d => d.EmpleadoId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_Solicitudes_Empleados");
-
-            entity.HasOne(d => d.EmpresaEmpleadora).WithMany(p => p.SolicitudesLaborales)
-                .HasForeignKey(d => d.EmpresaEmpleadoraId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_Solicitudes_EmpresaLaboral");
-
-            entity.HasOne(d => d.Fondeadora).WithMany(p => p.SolicitudesFondeadas)
-                .HasForeignKey(d => d.FondeadoraId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_Solicitudes_EmpresaFondeadora");
-
-            entity.HasOne(d => d.CondicionCredito).WithMany(p => p.Solicitudes)
-                .HasForeignKey(d => d.CondicionCreditoId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_Solicitudes_Condiciones");
-        });
-
         modelBuilder.Entity<ParametrosGenerale>(entity =>
         {
             entity.HasKey(e => e.ParametrosGeneralesId);
@@ -347,11 +308,6 @@ public partial class UcayNetDbContext : IdentityDbContext<UsuarioSistema>
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_Prestamos_DatosEmpresa");
 
-            entity.HasOne(d => d.Solicitud).WithMany(p => p.Prestamos)
-                .HasForeignKey(d => d.SolicitudId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_Prestamos_Solicitud");
-
             entity.HasOne(d => d.TipoPago).WithMany(p => p.Prestamos)
                 .HasForeignKey(d => d.TipoPagoId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
@@ -361,33 +317,6 @@ public partial class UcayNetDbContext : IdentityDbContext<UsuarioSistema>
                 .HasForeignKey(d => d.TipoPrestamoId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_Prestamos_TipoPrestamo");
-        });
-
-        modelBuilder.Entity<Pago>(entity =>
-        {
-            entity.ToTable("Pagos", "Prestamos");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.MontoPagado).HasColumnType("money");
-            entity.Property(e => e.TipoPago).HasMaxLength(50).IsUnicode(false);
-            entity.Property(e => e.MetodoPago).HasMaxLength(50).IsUnicode(false);
-            entity.Property(e => e.Referencia).HasMaxLength(100).IsUnicode(false);
-
-            entity.HasOne(d => d.Prestamo).WithMany(p => p.Pagos)
-                .HasForeignKey(d => d.PrestamoId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_Pagos_Prestamos");
-        });
-
-        modelBuilder.Entity<PausaPrestamo>(entity =>
-        {
-            entity.ToTable("PausasPrestamo", "Prestamos");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Motivo).HasMaxLength(500).IsUnicode(false);
-
-            entity.HasOne(d => d.Prestamo).WithMany(p => p.Pausas)
-                .HasForeignKey(d => d.PrestamoId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_Pausas_Prestamos");
         });
 
         modelBuilder.Entity<PrestamosAmortizacione>(entity =>

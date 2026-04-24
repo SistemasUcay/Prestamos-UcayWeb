@@ -23,5 +23,4 @@ public partial class CondicionCredito
     public bool Activo { get; set; }
 
     public virtual DatosEmpresa Fondeadora { get; set; } = null!;
-    public virtual ICollection<SolicitudPrestamo> Solicitudes { get; set; } = new List<SolicitudPrestamo>();
 }

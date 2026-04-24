@@ -103,10 +103,9 @@ public class EmpleadosService : IEmpleadosService
             if (empleado == null) return (false, "Empleado no encontrado.");
 
             // Validar si tiene préstamos
-            if (await _context.SolicitudesPrestamo.AnyAsync(x => x.EmpleadoId == empleadoId) ||
-                await _context.Prestamos.AnyAsync(x => x.EmpleadoId == empleadoId))
+            if (await _context.Prestamos.AnyAsync(x => x.EmpleadoId == empleadoId))
             {
-                return (false, "No se puede eliminar el empleado porque tiene préstamos o solicitudes asociadas.");
+                return (false, "No se puede eliminar el empleado porque tiene préstamos asociados.");
             }
 
             _context.Empleados.Remove(empleado);

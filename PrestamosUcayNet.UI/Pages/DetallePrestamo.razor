@@ -35,13 +35,6 @@
                         <MudText Typo="Typo.body2">Empleado: <b>@_prestamo.NombreEmpleado</b></MudText>
                         <MudText Typo="Typo.body2">Fondeadora: <b>@_prestamo.NombreFondeadora</b> — Tipo: <b>@_prestamo.TipoPrestamoDescripcion</b> — Pago: <b>@_prestamo.TipoPagoDescripcion</b></MudText>
                     </div>
-                    @if (_prestamo.Estado == "A")
-                    {
-                        <div class="d-flex gap-4">
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AddCard" OnClick="AbrirPago">Registrar Pago</MudButton>
-                            <MudButton Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.PauseCircle" OnClick="AbrirPausa">Pausar</MudButton>
-                        </div>
-                    }
                 </MudPaper>
             </MudItem>
 
@@ -128,79 +121,11 @@
     }
 </MudContainer>
 
-@* Diálogo de Pago *@
-<MudDialog @bind-Visible="_pagoVisible" Options="_dialogOptions">
-    <TitleContent><MudText Typo="Typo.h6">Registrar Pago</MudText></TitleContent>
-    <DialogContent>
-        <MudForm @ref="_formPago">
-            <MudGrid>
-                <MudItem xs="6">
-                    <MudNumericField T="decimal" Label="Monto a Pagar" @bind-Value="_montoPago" Required="true" Min="0.01m" />
-                </MudItem>
-                <MudItem xs="6">
-                    <MudDatePicker Label="Fecha" @bind-Date="_fechaPago" Required="true" />
-                </MudItem>
-                <MudItem xs="12">
-                    <MudSelect T="string" Label="Tipo de Pago" @bind-Value="_tipoPago">
-                        <MudSelectItem Value="@("Ordinario")">Pago Ordinario (Nómina)</MudSelectItem>
-                        <MudSelectItem Value="@("Extraordinario")">Pago Extraordinario / Adelanto</MudSelectItem>
-                    </MudSelect>
-                </MudItem>
-                @if (_tipoPago == "Extraordinario")
-                {
-                    <MudItem xs="12">
-                        <MudAlert Severity="Severity.Info">
-                            Los pagos extraordinarios recalculan el saldo inmediatamente.
-                        </MudAlert>
-                        <MudCheckBox @bind-Value="_reducirPlazo" Label="Reducir plazo (mantener cuota)" Color="Color.Primary" />
-                        <MudText Typo="Typo.caption" Class="ml-8">Si se desmarca, se reducirá la cuota mensual manteniendo el plazo.</MudText>
-                    </MudItem>
-                }
-            </MudGrid>
-        </MudForm>
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="() => _pagoVisible = false">Cancelar</MudButton>
-        <MudSpacer />
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ConfirmarPago">Registrar</MudButton>
-    </DialogActions>
-</MudDialog>
-
-@* Diálogo de Pausa *@
-<MudDialog @bind-Visible="_pausaVisible" Options="_dialogOptions">
-    <TitleContent><MudText Typo="Typo.h6">Solicitar Pausa de Préstamo</MudText></TitleContent>
-    <DialogContent>
-        <MudAlert Severity="Severity.Warning" Class="mb-4">
-            La pausa desplazará todas las fechas de pago futuras.
-        </MudAlert>
-        <MudNumericField T="int" Label="Meses de Pausa" @bind-Value="_mesesPausa" Min="1" Max="6" />
-        <MudTextField T="string" Label="Motivo" @bind-Value="_motivoPausa" Required="true" Class="mt-4" />
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="() => _pausaVisible = false">Cerrar</MudButton>
-        <MudSpacer />
-        <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="ConfirmarPausa">Aplicar Pausa</MudButton>
-    </DialogActions>
-</MudDialog>
-
 @code {
     [Parameter] public int Id { get; set; }
     
     private PrestamoDetalleDto? _prestamo;
     private bool _loading = true;
-    
-    private bool _pagoVisible = false;
-    private MudForm _formPago = null!;
-    private decimal _montoPago;
-    private DateTime? _fechaPago = DateTime.Today;
-    private string _tipoPago = "Ordinario";
-    private bool _reducirPlazo = true;
-    
-    private bool _pausaVisible = false;
-    private int _mesesPausa = 1;
-    private string _motivoPausa = "";
-
-    private DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Small, FullWidth = true };
 
     protected override async Task OnParametersSetAsync()
     {
@@ -221,55 +146,6 @@
         finally
         {
             _loading = false;
-        }
-    }
-
-    private void AbrirPago()
-    {
-        _montoPago = _prestamo?.TablaAmortizacion.FirstOrDefault(c => !c.Pagado)?.ImportePago ?? 0;
-        _pagoVisible = true;
-    }
-
-    private async Task ConfirmarPago()
-    {
-        await _formPago.Validate();
-        if (!_formPago.IsValid) return;
-
-        var result = await PrestamosApi.RegistrarPagoAsync(new RegistrarPagoDto
-        {
-            PrestamoId = Id,
-            Monto = _montoPago,
-            FechaPago = _fechaPago ?? DateTime.Today,
-            TipoPago = _tipoPago,
-            ReducirPlazo = _reducirPlazo
-        });
-
-        if (result)
-        {
-            Snackbar.Add("Pago registrado con éxito.", Severity.Success);
-            _pagoVisible = false;
-            await CargarDetalle();
-        }
-    }
-
-    private void AbrirPausa() => _pausaVisible = true;
-
-    private async Task ConfirmarPausa()
-    {
-        if (string.IsNullOrWhiteSpace(_motivoPausa)) return;
-
-        var result = await PrestamosApi.PausarAsync(new SolicitudPausaDto
-        {
-            PrestamoId = Id,
-            MesesPausa = _mesesPausa,
-            Motivo = _motivoPausa
-        });
-
-        if (result)
-        {
-            Snackbar.Add("Pausa aplicada. Se han desplazado las fechas de pago.", Severity.Warning);
-            _pausaVisible = false;
-            await CargarDetalle();
         }
     }
 

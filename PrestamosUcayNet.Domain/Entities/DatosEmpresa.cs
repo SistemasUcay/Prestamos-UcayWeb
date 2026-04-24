@@ -67,11 +67,6 @@ public partial class DatosEmpresa
 
     public virtual ICollection<Empleado> Empleados { get; set; } = new List<Empleado>();
     public virtual ICollection<CondicionCredito> CondicionesCredito { get; set; } = new List<CondicionCredito>();
-    
-    // Relación como Empresa Empleadora del empleado que solicita
-    public virtual ICollection<SolicitudPrestamo> SolicitudesLaborales { get; set; } = new List<SolicitudPrestamo>();
-    
-    // Relación como Fuente Fondeadora del préstamo
-    public virtual ICollection<SolicitudPrestamo> SolicitudesFondeadas { get; set; } = new List<SolicitudPrestamo>();
+
     public virtual ICollection<Prestamo> PrestamosFondeados { get; set; } = new List<Prestamo>();
 }

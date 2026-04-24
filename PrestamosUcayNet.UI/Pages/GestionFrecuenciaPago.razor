@@ -217,7 +217,7 @@
 
     private async Task GuardarAsync()
     {
-        await _form.Validate();
+        await _form.ValidateAsync();
         if (!_formIsValid) return;
 
         _saving = true;

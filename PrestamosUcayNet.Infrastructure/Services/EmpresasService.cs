@@ -93,7 +93,6 @@ public class EmpresasService : IEmpresasService
 
             // Validar si tiene empleados o préstamos asociados
             bool tieneRelaciones = await _context.Empleados.AnyAsync(x => x.EmpresaId == numEmpresa) ||
-                                  await _context.SolicitudesPrestamo.AnyAsync(x => x.EmpresaEmpleadoraId == numEmpresa || x.FondeadoraId == numEmpresa) ||
                                   await _context.Prestamos.AnyAsync(x => x.FuenteFondeoId == numEmpresa);
 
             if (tieneRelaciones)

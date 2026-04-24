@@ -4,7 +4,7 @@
 @using PrestamosUcayNet.UI.Services
 @using MudBlazor
 @attribute [Authorize(Roles = "Administrador,Gerente")]
-@inject SolicitudesApiService SolicitudesApi
+@inject PrestamosApiService PrestamosApi
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject NavigationManager Navigation
@@ -24,18 +24,18 @@
     }
     else
     {
-        <MudDataGrid Items="@_solicitudes" Filterable="true" SortMode="SortMode.Multiple" Hover="true" Bordered="true" Striped="true">
+        <MudDataGrid Items="@_prestamos" Filterable="true" SortMode="SortMode.Multiple" Hover="true" Bordered="true" Striped="true">
             <Columns>
                 <PropertyColumn Property="x => x.FechaSolicitud" Title="Fecha" Format="dd/MM/yyyy" />
                 <PropertyColumn Property="x => x.NombreEmpleado" Title="Empleado" />
-                <PropertyColumn Property="x => x.NombreEmpresaEmpleadora" Title="Empresa" />
-                <PropertyColumn Property="x => x.NombreProducto" Title="Producto" />
-                <PropertyColumn Property="x => x.MontoSolicitado" Title="Monto" Format="C2" />
+                <PropertyColumn Property="x => x.NombreFondeadora" Title="Fondeadora" />
+                <PropertyColumn Property="x => x.TipoPrestamoDescripcion" Title="Tipo Préstamo" />
+                <PropertyColumn Property="x => x.MontoAprobado" Title="Monto" Format="C2" />
                 <PropertyColumn Property="x => x.PlazoMeses" Title="Plazo (Meses)" />
                 <TemplateColumn Title="Estado" CellStyle="width: 130px;">
                     <CellTemplate>
-                        <MudChip T="string" Size="Size.Small" Color="@ObtenerColorEstadoSolicitud(context.Item.EstadoSolicitud)">
-                            @context.Item.EstadoSolicitud
+                        <MudChip T="string" Size="Size.Small" Color="@ObtenerColorEstadoPrestamo(context.Item.Estado)">
+                            @ObtenerDescripcionEstado(context.Item.Estado)
                         </MudChip>
                     </CellTemplate>
                 </TemplateColumn>
@@ -46,7 +46,7 @@
                 </TemplateColumn>
             </Columns>
             <PagerContent>
-                <MudDataGridPager T="SolicitudDetalleDto" />
+                <MudDataGridPager T="PrestamoListDto" />
             </PagerContent>
         </MudDataGrid>
     }
@@ -54,33 +54,37 @@
 
 <MudDialog @bind-IsVisible="_revisionVisible" Options="_dialogOptions">
     <TitleContent>
-        <MudText Typo="Typo.h6">Revisión de Solicitud #@_selectedSolicitud?.Id</MudText>
+        <MudText Typo="Typo.h6">Revisión de Préstamo #@_selectedPrestamo?.PrestamoId</MudText>
     </TitleContent>
     <DialogContent>
-        @if (_selectedSolicitud != null)
+        @if (_selectedPrestamo != null)
         {
             <MudGrid>
                 <MudItem xs="12" sm="6">
                     <MudText Typo="Typo.subtitle2">Empleado</MudText>
-                    <MudText Typo="Typo.body1">@_selectedSolicitud.NombreEmpleado</MudText>
+                    <MudText Typo="Typo.body1">@_selectedPrestamo.NombreEmpleado</MudText>
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudText Typo="Typo.subtitle2">Empresa</MudText>
-                    <MudText Typo="Typo.body1">@_selectedSolicitud.NombreEmpresaEmpleadora</MudText>
+                    <MudText Typo="Typo.subtitle2">Fondeadora</MudText>
+                    <MudText Typo="Typo.body1">@_selectedPrestamo.NombreFondeadora</MudText>
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudText Typo="Typo.subtitle2">Monto Solicitado</MudText>
-                    <MudText Typo="Typo.h6" Color="Color.Primary">@_selectedSolicitud.MontoSolicitado.ToString("C2")</MudText>
+                    <MudText Typo="Typo.subtitle2">Monto Aprobado</MudText>
+                    <MudText Typo="Typo.h6" Color="Color.Primary">@_selectedPrestamo.MontoAprobado.ToString("C2")</MudText>
                 </MudItem>
                 <MudItem xs="12" sm="6">
                     <MudText Typo="Typo.subtitle2">Plazo</MudText>
-                    <MudText Typo="Typo.body1">@_selectedSolicitud.PlazoMeses meses</MudText>
+                    <MudText Typo="Typo.body1">@_selectedPrestamo.PlazoMeses meses</MudText>
                 </MudItem>
-                <MudItem xs="12">
-                    <MudText Typo="Typo.subtitle2">Motivo</MudText>
-                    <MudText Typo="Typo.body2">@_selectedSolicitud.Motivo</MudText>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.subtitle2">Tipo de Préstamo</MudText>
+                    <MudText Typo="Typo.body1">@_selectedPrestamo.TipoPrestamoDescripcion</MudText>
                 </MudItem>
-                
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.subtitle2">Tipo de Pago</MudText>
+                    <MudText Typo="Typo.body1">@_selectedPrestamo.TipoPagoDescripcion</MudText>
+                </MudItem>
+
                 <MudItem xs="12">
                     <MudDivider Class="my-4" />
                     <MudTextField T="string" Label="Notas / Motivo (Requerido para rechazo/cancelación)" 
@@ -96,34 +100,36 @@
                    StartIcon="@Icons.Material.Filled.ThumbDown">Rechazar</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="Cancelar"
                    StartIcon="@Icons.Material.Filled.Cancel">Cancelar</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="Aprobar"
-                   StartIcon="@Icons.Material.Filled.CheckCircle">Aprobar y Otorgar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="AprobarYEntregar"
+                   StartIcon="@Icons.Material.Filled.CheckCircle">Aprobar y Entregar</MudButton>
     </DialogActions>
 </MudDialog>
 
 @code {
-    private List<SolicitudDetalleDto> _solicitudes = new();
+    private List<PrestamoListDto> _prestamos = new();
     private bool _loading = true;
     private bool _revisionVisible = false;
-    private SolicitudDetalleDto? _selectedSolicitud;
+    private PrestamoListDto? _selectedPrestamo;
     private string _notasRevision = "";
     private DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Medium, FullWidth = true };
 
     protected override async Task OnInitializedAsync()
     {
-        await CargarSolicitudes();
+        await CargarPrestamos();
     }
 
-    private async Task CargarSolicitudes()
+    private async Task CargarPrestamos()
     {
         _loading = true;
         try
         {
-            _solicitudes = await SolicitudesApi.GetPendientesAsync();
+            // Cargar préstamos no evaluados (estado "E" o según el estado que definas)
+            // Por ahora asumimos estado "E" = En Evaluación
+            _prestamos = await PrestamosApi.GetPorEstadoAsync("E");
         }
         catch (Exception ex)
         {
-            Snackbar.Add("Error al cargar solicitudes: " + ex.Message, Severity.Error);
+            Snackbar.Add("Error al cargar préstamos pendientes: " + ex.Message, Severity.Error);
         }
         finally
         {
@@ -131,88 +137,106 @@
         }
     }
 
-    private void AbrirRevision(SolicitudDetalleDto item)
+    private void AbrirRevision(PrestamoListDto item)
     {
-        _selectedSolicitud = item;
+        _selectedPrestamo = item;
         _notasRevision = "";
         _revisionVisible = true;
     }
 
-    private async Task Aprobar()
+    private async Task AprobarYEntregar()
     {
-        if (_selectedSolicitud == null) return;
+        if (_selectedPrestamo == null) return;
 
-        var result = await SolicitudesApi.AprobarAsync(new AprobarSolicitudDto 
+        var activarDto = new ActivarPrestamoDto 
         { 
-            SolicitudId = _selectedSolicitud.Id,
-            MontoAprobado = _selectedSolicitud.MontoSolicitado,
-            Notas = _notasRevision
-        });
+            PrestamoId = _selectedPrestamo.PrestamoId,
+            FechaEntrega = DateTime.Now,
+            MetodoEntrega = "Transferencia",
+            Referencia = _notasRevision ?? "Aprobado",
+            Folio = null
+        };
+
+        var result = await PrestamosApi.ActivarAsync(activarDto);
 
         if (result)
         {
-            Snackbar.Add("Solicitud aprobada — el préstamo ha sido otorgado. Proceda a la activación desde Gestión de Préstamos.", Severity.Success);
+            Snackbar.Add("Préstamo aprobado y entregado. Ahora está activo.", Severity.Success);
             _revisionVisible = false;
-            await CargarSolicitudes();
+            await CargarPrestamos();
         }
         else
         {
-            Snackbar.Add("No se pudo aprobar la solicitud.", Severity.Error);
+            Snackbar.Add("No se pudo activar el préstamo.", Severity.Error);
         }
     }
 
     private async Task Rechazar()
     {
-        if (_selectedSolicitud == null) return;
+        if (_selectedPrestamo == null) return;
         if (string.IsNullOrWhiteSpace(_notasRevision))
         {
             Snackbar.Add("Debe indicar el motivo del rechazo.", Severity.Warning);
             return;
         }
 
-        var result = await SolicitudesApi.RechazarAsync(new RechazarSolicitudDto 
-        { 
-            SolicitudId = _selectedSolicitud.Id,
-            MotivoRechazo = _notasRevision
-        });
+        // Para rechazar, cambiaríamos el estado a "R" (Rechazado)
+        // Necesitamos un método en el API para esto, por ahora usamos Cancelar con estado específico
+        var result = await PrestamosApi.CancelarAsync(_selectedPrestamo.PrestamoId);
 
         if (result)
         {
-            Snackbar.Add("Solicitud rechazada.", Severity.Info);
+            Snackbar.Add("Préstamo rechazado.", Severity.Info);
             _revisionVisible = false;
-            await CargarSolicitudes();
+            await CargarPrestamos();
+        }
+        else
+        {
+            Snackbar.Add("No se pudo rechazar el préstamo.", Severity.Error);
         }
     }
 
     private async Task Cancelar()
     {
-        if (_selectedSolicitud == null) return;
+        if (_selectedPrestamo == null) return;
         if (string.IsNullOrWhiteSpace(_notasRevision))
         {
             Snackbar.Add("Debe indicar el motivo de la cancelación.", Severity.Warning);
             return;
         }
 
-        var result = await SolicitudesApi.CancelarAsync(new CancelarSolicitudDto 
-        { 
-            SolicitudId = _selectedSolicitud.Id,
-            MotivoCancelacion = _notasRevision
-        });
+        var result = await PrestamosApi.CancelarAsync(_selectedPrestamo.PrestamoId);
 
         if (result)
         {
-            Snackbar.Add("Solicitud cancelada.", Severity.Info);
+            Snackbar.Add("Préstamo cancelado.", Severity.Info);
             _revisionVisible = false;
-            await CargarSolicitudes();
+            await CargarPrestamos();
+        }
+        else
+        {
+            Snackbar.Add("No se pudo cancelar el préstamo.", Severity.Error);
         }
     }
 
-    private static Color ObtenerColorEstadoSolicitud(string estado) => estado switch
+    private static string ObtenerDescripcionEstado(string estado) => estado switch
     {
-        "Pendiente" or "En Trámite" => Color.Warning,
-        "Aprobada" or "Otorgado" => Color.Success,
-        "Rechazada" => Color.Error,
-        "Cancelada" => Color.Dark,
+        "E" => "En Evaluación",
+        "A" => "Activo",
+        "P" => "Pagado",
+        "L" => "Liquidado",
+        "C" => "Cancelado",
+        "S" => "Suspendido",
+        _ => estado
+    };
+
+    private static Color ObtenerColorEstadoPrestamo(string estado) => estado switch
+    {
+        "E" => Color.Warning,
+        "A" => Color.Success,
+        "P" or "L" => Color.Info,
+        "C" => Color.Error,
+        "S" => Color.Dark,
         _ => Color.Default
     };
 }
