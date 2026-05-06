@@ -94,4 +94,85 @@ public class PrestamosController : ControllerBase
         if (!result) return BadRequest("No se pudo cancelar el préstamo.");
         return Ok();
     }
+
+    [HttpPost("evaluar")]
+    public async Task<IActionResult> Evaluar(EvaluarPrestamoDto dto)
+    {
+        try
+        {
+            var result = await _prestamosService.EvaluarPrestamoAsync(dto);
+            if (!result) return BadRequest("No se pudo evaluar el préstamo.");
+            return Ok();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    [HttpPost("{id}/aprobar")]
+    public async Task<IActionResult> Aprobar(int id, [FromBody] AprobarPrestamoRequestDto request)
+    {
+        try
+        {
+            var result = await _prestamosService.AprobarPrestamoAsync(
+                id,
+                request.FechaEntrega,
+                request.MetodoEntrega,
+                request.Referencia,
+                request.Folio,
+                request.Notas);
+
+            if (!result) return BadRequest("No se pudo aprobar el préstamo.");
+            return Ok();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    [HttpPost("{id}/rechazar")]
+    public async Task<IActionResult> Rechazar(int id, [FromBody] RechazarCancelarRequestDto request)
+    {
+        try
+        {
+            var result = await _prestamosService.RechazarPrestamoAsync(id, request.Notas);
+            if (!result) return BadRequest("No se pudo rechazar el préstamo.");
+            return Ok();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    [HttpPost("{id}/cancelar-solicitud")]
+    public async Task<IActionResult> CancelarSolicitud(int id, [FromBody] RechazarCancelarRequestDto request)
+    {
+        try
+        {
+            var result = await _prestamosService.CancelarSolicitudAsync(id, request.Notas);
+            if (!result) return BadRequest("No se pudo cancelar la solicitud.");
+            return Ok();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+}
+
+public class AprobarPrestamoRequestDto
+{
+    public DateTime FechaEntrega { get; set; } = DateTime.Now;
+    public string MetodoEntrega { get; set; } = "Transferencia";
+    public string Referencia { get; set; } = string.Empty;
+    public string? Folio { get; set; }
+    public string? Notas { get; set; }
+}
+
+public class RechazarCancelarRequestDto
+{
+    public string Notas { get; set; } = string.Empty;
 }

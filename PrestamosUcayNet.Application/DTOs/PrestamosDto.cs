@@ -56,6 +56,10 @@ public class PrestamoDetalleDto
 {
     public int Id { get; set; }
     public string? Folio { get; set; }
+    public int EmpleadoId { get; set; }
+    public int FuenteFondeoId { get; set; }
+    public int TipoPrestamoId { get; set; }
+    public int TipoPagoId { get; set; }
     public string NombreEmpleado { get; set; } = null!;
     public string NombreFondeadora { get; set; } = null!;
     public string TipoPrestamoDescripcion { get; set; } = null!;
@@ -75,11 +79,13 @@ public class PrestamoDetalleDto
     public string Estado { get; set; } = null!;
     public decimal TotalPagar { get; set; }
     public decimal SaldoPendiente { get; set; }
+    public decimal TotalSolicitud { get; set; }
     public decimal SueldoLaboral { get; set; }
     public bool AvalCredito { get; set; }
     public string? MetodoEntrega { get; set; }
     public string? ReferenciaBancaria { get; set; }
     public List<AmortizacionDto> TablaAmortizacion { get; set; } = new();
+    public List<PrestamoDirectoDto> PrestamosDirectos { get; set; } = new();
 
     public string EstadoDescripcion => Estado switch
     {
@@ -138,6 +144,46 @@ public class PagoAdicionalCapitalDto
 }
 
 /// <summary>
+/// DTO para Préstamos Directos que se pagan en una sola exhibición
+/// </summary>
+public class PrestamoDirectoDto
+{
+    public int NumPrestamoDirecto { get; set; }
+    public int PrestamoId { get; set; }
+    public string Descripcion { get; set; } = string.Empty;
+    public decimal MontoSolicitado { get; set; }
+    public decimal TasaMensual { get; set; }
+    public DateTime FechaPago { get; set; }
+    public int DiazPlazo { get; set; }
+    public decimal MontoIntereses { get; set; }
+    public decimal TotalCapitalInteres { get; set; }
+}
+
+/// <summary>
+/// DTO para crear un nuevo Préstamo Directo en la solicitud
+/// </summary>
+public class PrestamoDirectoCreateDto
+{
+    [Required(ErrorMessage = "La descripción es requerida")]
+    [MaxLength(250)]
+    public string Descripcion { get; set; } = string.Empty;
+
+    [Required]
+    [Range(0.01, double.MaxValue, ErrorMessage = "El monto debe ser mayor a cero")]
+    public decimal MontoSolicitado { get; set; }
+
+    [Required]
+    [Range(0.001, 100, ErrorMessage = "La tasa mensual debe ser mayor a cero")]
+    public decimal TasaMensual { get; set; }
+
+    [Required]
+    public DateTime FechaPago { get; set; } = DateTime.Today;
+
+    [Range(1, 3650, ErrorMessage = "Los días de plazo deben estar entre 1 y 3650")]
+    public int DiazPlazo { get; set; }
+}
+
+/// <summary>
 /// DTO para crear un préstamo directamente sin pasar por solicitud
 /// </summary>
 public class PrestamoCreateDto
@@ -191,7 +237,12 @@ public class PrestamoCreateDto
 
     [Required]
     public List<AmortizacionDto> Amortizaciones { get; set; } = [];
-      
+
+    /// <summary>
+    /// Lista de préstamos directos asociados a esta solicitud
+    /// </summary>
+    public List<PrestamoDirectoCreateDto> PrestamosDirectos { get; set; } = [];
+
 }
 
 /// <summary>
@@ -224,9 +275,26 @@ public class SimularAmortizacionDto
     public int FrecuenciaAnual { get; set; } = 12;
 
     /// <summary>
-    /// Lista de pagos adicionales a capital que se aplican en números de pago específicos
+    /// Fecha de inicio del período de nómina del empleado.
+    /// Cuando se proporciona, las fechas de pago se generan siguiendo el calendario
+    /// real de nómina (semanal, catorcenal, quincenal, mensual) tomando la primera
+    /// fecha de pago que sea estrictamente posterior a <see cref="FechaEntrega"/>.
+    /// Si es <c>null</c> se usa el comportamiento anterior (FechaEntrega + k × IntervaloDiario).
     /// </summary>
-    public List<PagoAdicionalCapitalDto> PagosAdicionales { get; set; } = [];
+    public DateTime? FechaInicioPeriodo { get; set; }
+
+    /// <summary>
+    /// Fecha límite de vencimiento para préstamos de Caja de Ahorro (CierreCajaAnual).
+    /// Cuando se proporciona, la tabla se trunca de modo que ninguna amortización supere
+    /// esta fecha. El último pago liquida el saldo total pendiente, calculando los intereses
+    /// con los días reales transcurridos desde el pago anterior.
+    /// </summary>
+    public DateTime? FechaCierreCaja { get; set; }
+
+    /// <summary>
+    /// Lista de préstamos directos a incluir en la simulación
+    /// </summary>
+    public List<PrestamoDirectoCreateDto> PrestamosDirectos { get; set; } = [];
 }
 
 /// <summary>
@@ -235,10 +303,13 @@ public class SimularAmortizacionDto
 public class AmortizacionPreviewResultDto
 {
     public List<AmortizacionDto> TablaAmortizacion { get; set; } = [];
+    public List<PrestamoDirectoDto> PrestamosDirectos { get; set; } = [];
     public decimal PagosAdicionalesCapital { get; set; }
     public decimal CapitalAmortizable { get; set; }
     public decimal TotalIntereses { get; set; }
     public decimal TotalPagar { get; set; }
+    public decimal TotalPrestamosDirectos { get; set; }
+    public decimal GranTotal { get; set; }
     public decimal TasaMensual { get; set; }
     public int DiasPlayzo { get; set; }
     public DateTime FechaUltimoPago { get; set; }
@@ -253,4 +324,50 @@ public class AmortizacionPreviewResultDto
     /// Número total de pagos generados según la frecuencia
     /// </summary>
     public int NumeroPagos { get; set; }
+}
+
+/// <summary>
+/// DTO para evaluar una solicitud de préstamo (Aprobar, Rechazar o Cancelar)
+/// </summary>
+public class EvaluarPrestamoDto
+{
+    [Required]
+    [Range(1, int.MaxValue)]
+    public int PrestamoId { get; set; }
+
+    /// <summary>
+    /// Acción de evaluación: "Aprobar", "Rechazar" o "Cancelar"
+    /// </summary>
+    [Required]
+    [MaxLength(20)]
+    public string Accion { get; set; } = null!;
+
+    /// <summary>
+    /// Notas u observaciones de la evaluación (requerido para Rechazar y Cancelar)
+    /// </summary>
+    [MaxLength(500)]
+    public string? Notas { get; set; }
+
+    /// <summary>
+    /// Fecha de entrega del préstamo (solo para Aprobar)
+    /// </summary>
+    public DateTime? FechaEntrega { get; set; }
+
+    /// <summary>
+    /// Método de entrega (Transferencia, Cheque, Efectivo) - solo para Aprobar
+    /// </summary>
+    [MaxLength(50)]
+    public string? MetodoEntrega { get; set; }
+
+    /// <summary>
+    /// Referencia bancaria o número de transacción - solo para Aprobar
+    /// </summary>
+    [MaxLength(100)]
+    public string? Referencia { get; set; }
+
+    /// <summary>
+    /// Folio del préstamo - solo para Aprobar
+    /// </summary>
+    [MaxLength(50)]
+    public string? Folio { get; set; }
 }

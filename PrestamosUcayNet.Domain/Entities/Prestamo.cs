@@ -133,11 +133,18 @@ public partial class Prestamo
     public decimal TotalPagar { get; set; }
     public decimal SaldoPendiente { get; set; }
 
+    /// <summary>
+    /// Monto total de la solicitud (Préstamo de nómina + Préstamos Directos)
+    /// </summary>
+    public decimal TotalSolicitud { get; set; }
+
     public virtual Empleado Empleado { get; set; } = null!;
 
     public virtual DatosEmpresa FuenteFondeo { get; set; } = null!;
 
     public virtual ICollection<PrestamosAmortizacione> PrestamosAmortizaciones { get; set; } = new List<PrestamosAmortizacione>();
+
+    public virtual ICollection<PrestamoDirecto> PrestamosDirectos { get; set; } = new List<PrestamoDirecto>();
 
     public virtual TiposPago TipoPago { get; set; } = null!;
 

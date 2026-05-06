@@ -1,8 +1,6 @@
 using System;
-using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
-using Microsoft.EntityFrameworkCore;
 using PrestamosUcayNet.Application.DTOs;
 using PrestamosUcayNet.Application.Interfaces;
 using PrestamosUcayNet.Domain.Entities;
@@ -21,25 +19,27 @@ public class ParametrosService : IParametrosService
         _mapper = mapper;
     }
 
-    public async Task<ParametrosDto> ObtenerAsync()
+    public async Task<ParametrosDto> ObtenerPorAnioAsync(int anio)
     {
-        var p = await _context.ParametrosGenerales.FirstOrDefaultAsync();
-        return _mapper.Map<ParametrosDto>(p ?? new ParametrosGenerale());
+        var p = await _context.ParametrosGenerales.FindAsync(anio);
+        return _mapper.Map<ParametrosDto>(p ?? new ParametrosGenerale { Anio = anio });
     }
 
     public async Task<(bool Success, string? Error)> GuardarAsync(ParametrosDto dto)
     {
         try
         {
-            var p = await _context.ParametrosGenerales.FirstOrDefaultAsync();
+            var p = await _context.ParametrosGenerales.FindAsync(dto.Anio);
 
             if (p == null)
             {
-                p = new ParametrosGenerale();
+                p = _mapper.Map<ParametrosGenerale>(dto);
                 _context.ParametrosGenerales.Add(p);
             }
-
-            _mapper.Map(dto, p);
+            else
+            {
+                _mapper.Map(dto, p);
+            }
 
             await _context.SaveChangesAsync();
             return (true, null);

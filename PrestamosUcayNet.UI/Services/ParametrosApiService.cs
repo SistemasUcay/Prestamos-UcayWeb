@@ -14,9 +14,9 @@ public class ParametrosApiService
         _http = http;
     }
 
-    public async Task<ParametrosDto> GetParametrosAsync()
+    public async Task<ParametrosDto> GetParametrosAsync(int anio)
     {
-        return await _http.GetFromJsonAsync<ParametrosDto>("api/parametros") ?? new();
+        return await _http.GetFromJsonAsync<ParametrosDto>($"api/parametros/{anio}") ?? new() { Anio = anio };
     }
 
     public async Task<HttpResponseMessage> SaveParametrosAsync(ParametrosDto dto)

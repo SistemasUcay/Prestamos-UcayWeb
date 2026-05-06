@@ -2,6 +2,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using PrestamosUcayNet.Application.DTOs
 @using PrestamosUcayNet.UI.Services
+@using PrestamosUcayNet.UI.Components.Dialogs
 @using MudBlazor
 @attribute [Authorize(Roles = "Administrador,Gerente")]
 @inject PrestamosApiService PrestamosApi
@@ -39,9 +40,26 @@
                         </MudChip>
                     </CellTemplate>
                 </TemplateColumn>
-                <TemplateColumn Title="Acciones" CellClass="d-flex justify-end">
+                <TemplateColumn Title="Acciones" CellClass="d-flex justify-end gap-1">
                     <CellTemplate>
-                        <MudButton Size="@Size.Small" Variant="@Variant.Filled" Color="@Color.Primary" OnClick="@(() => AbrirRevision(context.Item))">Revisar</MudButton>
+                        <MudIconButton Size="@Size.Small" 
+                                       Icon="@Icons.Material.Outlined.PictureAsPdf" 
+                                       Color="@Color.Default"
+                                       OnClick="@(() => VerSolicitudImprimible(context.Item))" 
+                                       Title="Ver formato imprimible"
+                                       Style="border-radius: 8px;" />
+                        <MudIconButton Size="@Size.Small" 
+                                       Icon="@Icons.Material.Outlined.Edit" 
+                                       Color="@Color.Default"
+                                       OnClick="@(() => EditarSolicitud(context.Item))" 
+                                       Title="Editar solicitud"
+                                       Style="border-radius: 8px;" />
+                        <MudIconButton Size="@Size.Small" 
+                                       Icon="@Icons.Material.Outlined.RateReview" 
+                                       Color="@Color.Primary"
+                                       OnClick="@(() => AbrirRevision(context.Item))" 
+                                       Title="Revisar solicitud"
+                                       Style="border-radius: 8px;" />
                     </CellTemplate>
                 </TemplateColumn>
             </Columns>
@@ -52,13 +70,17 @@
     }
 </MudContainer>
 
-<MudDialog @bind-IsVisible="_revisionVisible" Options="_dialogOptions">
-    <TitleContent>
-        <MudText Typo="Typo.h6">Revisión de Préstamo #@_selectedPrestamo?.PrestamoId</MudText>
-    </TitleContent>
-    <DialogContent>
-        @if (_selectedPrestamo != null)
-        {
+@if (_revisionVisible && _selectedPrestamo != null)
+{
+    <MudOverlay @onclick="@CerrarDialog" Visible="true" DarkBackground="true" ZIndex="9998" />
+    <MudPaper Style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999; max-width: 800px; width: 90%; max-height: 90vh; overflow-y: auto;" Elevation="24">
+        <MudToolBar>
+            <MudText Typo="Typo.h6">Revisión de Préstamo #@_selectedPrestamo.PrestamoId</MudText>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Default" OnClick="@CerrarDialog" />
+        </MudToolBar>
+
+        <MudContainer Style="padding: 24px;">
             <MudGrid>
                 <MudItem xs="12" sm="6">
                     <MudText Typo="Typo.subtitle2">Empleado</MudText>
@@ -91,27 +113,38 @@
                                   @bind-Value="_notasRevision" Lines="3" Variant="Variant.Outlined" />
                 </MudItem>
             </MudGrid>
-        }
-    </DialogContent>
-    <DialogActions>
-        <MudButton Variant="Variant.Text" OnClick="() => _revisionVisible = false">Cerrar</MudButton>
-        <MudSpacer />
-        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="Rechazar"
-                   StartIcon="@Icons.Material.Filled.ThumbDown">Rechazar</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="Cancelar"
-                   StartIcon="@Icons.Material.Filled.Cancel">Cancelar</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="AprobarYEntregar"
-                   StartIcon="@Icons.Material.Filled.CheckCircle">Aprobar y Entregar</MudButton>
-    </DialogActions>
-</MudDialog>
+        </MudContainer>
+
+        <MudDivider />
+
+        <MudContainer Style="padding: 16px; display: flex; justify-content: space-between; align-items: center;">
+            <MudButton Variant="Variant.Text" OnClick="@CerrarDialog" Disabled="@_procesando">Cerrar</MudButton>
+            <div style="display: flex; gap: 8px;">
+                <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="@Rechazar"
+                           StartIcon="@Icons.Material.Filled.ThumbDown" Disabled="@_procesando">Rechazar</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="@Cancelar"
+                           StartIcon="@Icons.Material.Filled.Cancel" Disabled="@_procesando">Cancelar</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="@AprobarYEntregar"
+                           StartIcon="@Icons.Material.Filled.CheckCircle" Disabled="@_procesando">Aprobar y Entregar</MudButton>
+            </div>
+        </MudContainer>
+    </MudPaper>
+}
 
 @code {
     private List<PrestamoListDto> _prestamos = new();
     private bool _loading = true;
     private bool _revisionVisible = false;
+    private bool _procesando = false;
     private PrestamoListDto? _selectedPrestamo;
     private string _notasRevision = "";
-    private DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Medium, FullWidth = true };
+    private DialogOptions _dialogOptions = new() 
+    { 
+        MaxWidth = MaxWidth.Medium, 
+        FullWidth = true,
+        CloseButton = true,
+        CloseOnEscapeKey = true
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -123,8 +156,6 @@
         _loading = true;
         try
         {
-            // Cargar préstamos no evaluados (estado "E" o según el estado que definas)
-            // Por ahora asumimos estado "E" = En Evaluación
             _prestamos = await PrestamosApi.GetPorEstadoAsync("E");
         }
         catch (Exception ex)
@@ -142,32 +173,89 @@
         _selectedPrestamo = item;
         _notasRevision = "";
         _revisionVisible = true;
+        StateHasChanged();
+    }
+
+    private void EditarSolicitud(PrestamoListDto item)
+    {
+        Navigation.NavigateTo($"/captura-prestamo/{item.PrestamoId}");
+    }
+
+    private async Task VerSolicitudImprimible(PrestamoListDto item)
+    {
+        try
+        {
+            var parameters = new DialogParameters
+            {
+                { nameof(SolicitudImprimibleDialog.PrestamoId), item.PrestamoId }
+            };
+
+            var options = new DialogOptions
+            {
+                MaxWidth = MaxWidth.Large,
+                FullWidth = true,
+                CloseButton = true,
+                CloseOnEscapeKey = true
+            };
+
+            await DialogService.ShowAsync<SolicitudImprimibleDialog>(
+                $"Solicitud de Préstamo #{item.PrestamoId}",
+                parameters,
+                options);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al abrir la solicitud: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void CerrarDialog()
+    {
+        _revisionVisible = false;
+        _selectedPrestamo = null;
+        _notasRevision = "";
+        _procesando = false;
+        StateHasChanged();
     }
 
     private async Task AprobarYEntregar()
     {
         if (_selectedPrestamo == null) return;
 
-        var activarDto = new ActivarPrestamoDto 
-        { 
-            PrestamoId = _selectedPrestamo.PrestamoId,
-            FechaEntrega = DateTime.Now,
-            MetodoEntrega = "Transferencia",
-            Referencia = _notasRevision ?? "Aprobado",
-            Folio = null
-        };
+        _procesando = true;
+        StateHasChanged();
 
-        var result = await PrestamosApi.ActivarAsync(activarDto);
-
-        if (result)
+        try
         {
-            Snackbar.Add("Préstamo aprobado y entregado. Ahora está activo.", Severity.Success);
-            _revisionVisible = false;
-            await CargarPrestamos();
+            if (string.IsNullOrWhiteSpace(_notasRevision))
+            {
+                _notasRevision = "Aprobado";
+            }
+
+            var result = await PrestamosApi.AprobarAsync(
+                _selectedPrestamo.PrestamoId,
+                DateTime.Now,
+                "Transferencia",
+                _notasRevision,
+                null,
+                _notasRevision);
+
+            if (result)
+            {
+                Snackbar.Add("Préstamo aprobado y activado exitosamente.", Severity.Success);
+                CerrarDialog();
+                await CargarPrestamos();
+            }
+            else
+            {
+                Snackbar.Add("No se pudo aprobar el préstamo.", Severity.Error);
+                _procesando = false;
+            }
         }
-        else
+        catch (Exception ex)
         {
-            Snackbar.Add("No se pudo activar el préstamo.", Severity.Error);
+            Snackbar.Add($"Error al aprobar: {ex.Message}", Severity.Error);
+            _procesando = false;
         }
     }
 
@@ -180,19 +268,29 @@
             return;
         }
 
-        // Para rechazar, cambiaríamos el estado a "R" (Rechazado)
-        // Necesitamos un método en el API para esto, por ahora usamos Cancelar con estado específico
-        var result = await PrestamosApi.CancelarAsync(_selectedPrestamo.PrestamoId);
+        _procesando = true;
+        StateHasChanged();
 
-        if (result)
+        try
         {
-            Snackbar.Add("Préstamo rechazado.", Severity.Info);
-            _revisionVisible = false;
-            await CargarPrestamos();
+            var result = await PrestamosApi.RechazarAsync(_selectedPrestamo.PrestamoId, _notasRevision);
+
+            if (result)
+            {
+                Snackbar.Add("Préstamo rechazado.", Severity.Info);
+                CerrarDialog();
+                await CargarPrestamos();
+            }
+            else
+            {
+                Snackbar.Add("No se pudo rechazar el préstamo.", Severity.Error);
+                _procesando = false;
+            }
         }
-        else
+        catch (Exception ex)
         {
-            Snackbar.Add("No se pudo rechazar el préstamo.", Severity.Error);
+            Snackbar.Add($"Error al rechazar: {ex.Message}", Severity.Error);
+            _procesando = false;
         }
     }
 
@@ -205,17 +303,29 @@
             return;
         }
 
-        var result = await PrestamosApi.CancelarAsync(_selectedPrestamo.PrestamoId);
+        _procesando = true;
+        StateHasChanged();
 
-        if (result)
+        try
         {
-            Snackbar.Add("Préstamo cancelado.", Severity.Info);
-            _revisionVisible = false;
-            await CargarPrestamos();
+            var result = await PrestamosApi.CancelarSolicitudAsync(_selectedPrestamo.PrestamoId, _notasRevision);
+
+            if (result)
+            {
+                Snackbar.Add("Solicitud cancelada.", Severity.Info);
+                CerrarDialog();
+                await CargarPrestamos();
+            }
+            else
+            {
+                Snackbar.Add("No se pudo cancelar la solicitud.", Severity.Error);
+                _procesando = false;
+            }
         }
-        else
+        catch (Exception ex)
         {
-            Snackbar.Add("No se pudo cancelar el préstamo.", Severity.Error);
+            Snackbar.Add($"Error al cancelar: {ex.Message}", Severity.Error);
+            _procesando = false;
         }
     }
 
@@ -226,6 +336,7 @@
         "P" => "Pagado",
         "L" => "Liquidado",
         "C" => "Cancelado",
+        "R" => "Rechazado",
         "S" => "Suspendido",
         _ => estado
     };
@@ -236,6 +347,7 @@
         "A" => Color.Success,
         "P" or "L" => Color.Info,
         "C" => Color.Error,
+        "R" => Color.Error,
         "S" => Color.Dark,
         _ => Color.Default
     };

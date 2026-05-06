@@ -217,106 +217,189 @@ public class CalculadoraAmortizacionService : ICalculadoraAmortizacionService
         int frecuenciaAnual = dto.FrecuenciaAnual > 0 ? dto.FrecuenciaAnual : 12;
         int intervaloDiario = dto.IntervaloDiario > 0 ? dto.IntervaloDiario : 30;
 
-        // Número total de pagos según la frecuencia: plazo en meses × pagos por año ÷ 12
-        int n = (int)Math.Ceiling(dto.PlazoMeses * frecuenciaAnual / 12.0);
-        if (n < 1) n = 1;
+        // Número máximo de pagos según plazo (puede reducirse si hay cierre de caja)
+        int nMax = (int)Math.Ceiling(dto.PlazoMeses * frecuenciaAnual / 12.0);
+        if (nMax < 1) nMax = 1;
 
-        // Tasa de interés por período de pago
+        // Tasa de interés por período de pago y tasa diaria para primer período irregular
         decimal tasaPorPeriodo = dto.TasaInteresAnual / frecuenciaAnual / 100m;
+        decimal tasaDiaria     = dto.TasaInteresAnual / 12m / 30m / 100m;
 
-        decimal cuota;
-        if (tasaPorPeriodo == 0)
+        // ── Generador de fechas de pago ──────────────────────────────────────────────
+        IEnumerable<DateTime> GenerarFechasPago()
         {
-            cuota = P / n;
-        }
-        else
-        {
-            decimal factor = (decimal)Math.Pow((double)(1 + tasaPorPeriodo), n);
-            cuota = P * (tasaPorPeriodo * factor) / (factor - 1);
-        }
-
-        cuota = Math.Round(cuota, 2);
-
-        // Indexar pagos adicionales por número de pago para acceso rápido
-        var pagosAdicionalesPorNumero = new Dictionary<int, decimal>();
-        decimal totalPagosAdicionales = 0;
-        if (dto.PagosAdicionales is { Count: > 0 })
-        {
-            foreach (var pa in dto.PagosAdicionales)
+            if (dto.FechaInicioPeriodo is { } inicio)
             {
-                if (pa.NumeroPago >= 1 && pa.NumeroPago <= n && pa.Monto > 0)
+                DateTime cursor = inicio;
+                while (cursor <= dto.FechaEntrega)
+                    cursor = cursor.AddDays(intervaloDiario);
+                while (true)
                 {
-                    if (!pagosAdicionalesPorNumero.ContainsKey(pa.NumeroPago))
-                        pagosAdicionalesPorNumero[pa.NumeroPago] = 0;
-                    pagosAdicionalesPorNumero[pa.NumeroPago] += pa.Monto;
-                    totalPagosAdicionales += pa.Monto;
+                    yield return cursor;
+                    cursor = cursor.AddDays(intervaloDiario);
+                }
+            }
+            else
+            {
+                for (int k = 1; ; k++)
+                    yield return dto.FechaEntrega.AddDays(k * intervaloDiario);
+            }
+        }
+
+        // ── PASADA 1: determinar fechas reales y calcular ΣIntereses ────────────────
+        // Se usa capital fijo (P / nMax) para decrementar el saldo y así obtener los
+        // intereses reales sobre saldo decreciente. Si hay cierre de caja, el número
+        // real de pagos puede ser menor a nMax y el saldo residual se absorbe en la
+        // última cuota.
+        var fechasPasada1 = new List<DateTime>();
+        {
+            decimal capitalFijo = tasaPorPeriodo == 0 ? P : Math.Round(P / nMax, 2);
+            decimal saldo = P;
+            using var en = GenerarFechasPago().GetEnumerator();
+
+            for (int k = 1; k <= nMax && saldo > 0; k++)
+            {
+                en.MoveNext();
+                DateTime fecha = en.Current;
+
+                // Si la fecha supera el cierre, la última fecha ya registrada absorbe el resto
+                if (dto.FechaCierreCaja.HasValue && fecha > dto.FechaCierreCaja.Value)
+                    break;
+
+                fechasPasada1.Add(fecha);
+                saldo = Math.Round(saldo - capitalFijo, 2);
+                if (saldo < 0) saldo = 0;
+            }
+
+            // Caso extremo: sin ninguna fecha válida (primera ya supera el cierre)
+            if (fechasPasada1.Count == 0 && dto.FechaCierreCaja.HasValue)
+                fechasPasada1.Add(dto.FechaCierreCaja.Value);
+        }
+
+        int nReal = fechasPasada1.Count;
+
+        // Calcular ΣIntereses con saldo decreciente usando capital fijo real
+        decimal totalInteresesPasada = 0;
+        if (tasaPorPeriodo != 0 && nReal > 0)
+        {
+            decimal capitalFijoReal = Math.Round(P / nReal, 2);
+            decimal saldo = P;
+            for (int k = 0; k < nReal; k++)
+            {
+                decimal interes = k == 0
+                    ? Math.Round(saldo * tasaDiaria * Math.Max(1, (fechasPasada1[0] - dto.FechaEntrega).Days), 2)
+                    : Math.Round(saldo * tasaPorPeriodo, 2);
+                totalInteresesPasada += interes;
+                saldo = Math.Round(saldo - capitalFijoReal, 2);
+                if (saldo < 0) saldo = 0;
+            }
+        }
+
+        // ── Cuota promedio = (Capital + ΣIntereses) / nReal ─────────────────────────
+        decimal cuota = nReal > 0
+            ? Math.Round((P + totalInteresesPasada) / nReal, 2)
+            : P;
+
+        // Calcular préstamos directos
+        var prestamosDirectosCalculados = new List<PrestamoDirectoDto>();
+        decimal totalPrestamosDirectos = 0;
+        if (dto.PrestamosDirectos is { Count: > 0 })
+        {
+            foreach (var pd in dto.PrestamosDirectos)
+            {
+                if (pd.MontoSolicitado > 0)
+                {
+                    int diasPlazoPD = pd.DiazPlazo > 0 ? pd.DiazPlazo : (int)(pd.FechaPago - dto.FechaEntrega).TotalDays;
+                    decimal tasaMensualPD = pd.TasaMensual > 0 ? pd.TasaMensual : tasaPorPeriodo;
+                    decimal mesesPlazo = diasPlazoPD / 30m;
+                    decimal intereses = Math.Round(pd.MontoSolicitado * tasaMensualPD * mesesPlazo, 2);
+                    decimal total = pd.MontoSolicitado + intereses;
+
+                    prestamosDirectosCalculados.Add(new PrestamoDirectoDto
+                    {
+                        Descripcion      = pd.Descripcion,
+                        MontoSolicitado  = pd.MontoSolicitado,
+                        TasaMensual      = tasaMensualPD,
+                        FechaPago        = pd.FechaPago,
+                        DiazPlazo        = diasPlazoPD,
+                        MontoIntereses   = intereses,
+                        TotalCapitalInteres = total
+                    });
+                    totalPrestamosDirectos += total;
                 }
             }
         }
 
+        // ── PASADA 2: construir la tabla definitiva con la cuota promedio ────────────
         var tabla = new List<AmortizacionDto>();
         decimal saldoAnterior = P;
         decimal totalIntereses = 0;
-        decimal totalCapital = 0;
-        decimal totalExtras = 0;
+        decimal totalCapital   = 0;
 
-        for (int k = 1; k <= n; k++)
+        for (int k = 0; k < nReal && saldoAnterior > 0; k++)
         {
-            if (saldoAnterior <= 0) break;
+            DateTime fechaPago = fechasPasada1[k];
+            bool esUltima = k == nReal - 1;
 
-            decimal interesCuota = Math.Round(saldoAnterior * tasaPorPeriodo, 2);
-            decimal capitalCuota = Math.Round(cuota - interesCuota, 2);
+            // Interés: días reales en el primer pago, tasa por período en el resto
+            decimal interes = k == 0
+                ? Math.Round(saldoAnterior * tasaDiaria * Math.Max(1, (fechaPago - dto.FechaEntrega).Days), 2)
+                : Math.Round(saldoAnterior * tasaPorPeriodo, 2);
 
-            if (k == n || capitalCuota >= saldoAnterior)
+            decimal capital = Math.Round(cuota - interes, 2);
+
+            // Última cuota: liquidar el saldo restante en su totalidad
+            if (esUltima || capital >= saldoAnterior)
             {
-                capitalCuota = saldoAnterior;
-                cuota = capitalCuota + interesCuota;
+                capital = saldoAnterior;
+                cuota   = capital + interes;
             }
 
-            decimal saldoFinal = Math.Round(saldoAnterior - capitalCuota, 2);
-
-            // Aplicar pago adicional a capital en este período
-            decimal pagoExtra = 0;
-            if (pagosAdicionalesPorNumero.TryGetValue(k, out decimal extraMonto))
-            {
-                pagoExtra = Math.Min(extraMonto, saldoFinal);
-                saldoFinal = Math.Round(saldoFinal - pagoExtra, 2);
-                totalExtras += pagoExtra;
-            }
+            decimal saldoFinal = Math.Round(saldoAnterior - capital, 2);
 
             tabla.Add(new AmortizacionDto
             {
-                NumeroPago = k,
-                FechaPago = dto.FechaEntrega.AddDays(k * intervaloDiario),
-                ImportePago = Math.Round(cuota, 2),
-                ImporteCapital = capitalCuota,
-                ImporteInteres = interesCuota,
-                PagoExtra = pagoExtra,
-                SaldoFinal = saldoFinal,
-                Pagado = false
+                NumeroPago     = k + 1,
+                FechaPago      = fechaPago,
+                ImportePago    = Math.Round(cuota, 2),
+                ImporteCapital = capital,
+                ImporteInteres = interes,
+                PagoExtra      = 0,
+                SaldoFinal     = saldoFinal,
+                Pagado         = false
             });
 
-            totalIntereses += interesCuota;
-            totalCapital += capitalCuota;
-            saldoAnterior = saldoFinal;
+            totalIntereses += interes;
+            totalCapital   += capital;
+            saldoAnterior   = saldoFinal;
         }
 
         DateTime fechaUltimoPago = tabla.Count > 0 ? tabla[^1].FechaPago : dto.FechaEntrega;
         int diasPlazo = (int)(fechaUltimoPago - dto.FechaEntrega).TotalDays;
 
+        decimal totalAmortizacion = Math.Round(totalCapital + totalIntereses, 2);
+        decimal granTotal = totalAmortizacion + totalPrestamosDirectos;
+
+        // La cuota que se muestra es el importe de la primera fila (uniforme en todas
+        // las cuotas regulares; la última puede diferir por ajuste de saldo).
+        decimal cuotaDisplay = tabla.Count > 0 ? tabla[0].ImportePago : 0;
+
         return new AmortizacionPreviewResultDto
         {
-            TablaAmortizacion = tabla,
-            PagosAdicionalesCapital = totalExtras,
-            CapitalAmortizable = P - totalExtras,
-            TotalIntereses = Math.Round(totalIntereses, 2),
-            TotalPagar = Math.Round(totalCapital + totalIntereses, 2),
-            TasaMensual = Math.Round(dto.TasaInteresAnual / 12m, 2),
-            TasaPorPeriodo = Math.Round(tasaPorPeriodo * 100m, 4),
-            NumeroPagos = n,
-            DiasPlayzo = diasPlazo,
-            FechaUltimoPago = fechaUltimoPago,
-            CuotaMensual = tabla.Count > 0 ? tabla[0].ImportePago : 0
+            TablaAmortizacion       = tabla,
+            PrestamosDirectos       = prestamosDirectosCalculados,
+            PagosAdicionalesCapital = 0,
+            CapitalAmortizable      = P,
+            TotalIntereses          = Math.Round(totalIntereses, 2),
+            TotalPagar              = totalAmortizacion,
+            TotalPrestamosDirectos  = totalPrestamosDirectos,
+            GranTotal               = granTotal,
+            TasaMensual             = Math.Round(dto.TasaInteresAnual / 12m, 2),
+            TasaPorPeriodo          = Math.Round(tasaPorPeriodo * 100m, 4),
+            NumeroPagos             = nReal,
+            DiasPlayzo              = diasPlazo,
+            FechaUltimoPago         = fechaUltimoPago,
+            CuotaMensual            = cuotaDisplay
         };
     }
 }

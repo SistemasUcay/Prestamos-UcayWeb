@@ -5,17 +5,38 @@
 
 <PageTitle>Configuración del Sistema — Préstamos UcayNet</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-1">
+<MudText Typo="Typo.h5" Class="mb-1">
     <MudIcon Icon="@Icons.Material.Filled.Settings" Class="mr-2" Style="vertical-align: middle;" />
     Configuración del Sistema
 </MudText>
-<MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mb-4">
+<MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="mb-4">
     Ajusta los parámetros globales y tasas de interés fijas
 </MudText>
 
 <MudGrid>
-    <MudItem xs="12" md="8" lg="6">
-        <MudPaper Elevation="2" Class="pa-6" Style="border-radius: 12px;">
+    <MudItem xs="12" md="8" lg="8">
+        <MudPaper Elevation="2" Class="pa-2" Style="border-radius: 12px;">
+            @* Selector de año *@
+            <MudGrid Spacing="2" Class="mb-1" AlignItems="AlignItems.Center">
+                <MudItem xs="12" sm="3" md="3">
+                    <MudNumericField Value="_anioSeleccionado" Label="Año"
+                        Min="2000" Max="2100" Variant="Variant.Outlined"
+                        Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.CalendarMonth"
+                        HideSpinButtons="false" Margin="Margin.Dense"
+                        ValueChanged="@((int anio) => OnAnioChangedAsync(anio))" />
+                </MudItem>
+                @if (_esRegistroNuevo)
+                {
+                    <MudItem xs="12" sm="9" md="9">
+                        <MudAlert Severity="Severity.Info" Dense="true" Class="mb-0">
+                            No existe configuración para @_anioSeleccionado. Se creará un registro nuevo al guardar.
+                        </MudAlert>
+                    </MudItem>
+                }
+            </MudGrid>
+
+            <MudDivider Class="mb-4" />
+
             @if (_loading)
             {
                 <div class="d-flex flex-column align-center pa-8">
@@ -26,50 +47,76 @@
             else
             {
                 <MudForm @ref="_form" @bind-IsValid="@_formIsValid">
-                    <MudText Typo="Typo.h6" Class="mb-4">Tasas de Interés Fijas</MudText>
-                    <MudGrid Spacing="3">
-                        <MudItem xs="12" md="6">
-                            <MudNumericField @bind-Value="_model.TasaFijaEmpresa" Label="Tasa Empresa (%)"
+                    <MudText Typo="Typo.h6" Class="mb-2">Tasas de Interés Fijas</MudText>
+                    <MudGrid Spacing="1">
+                        <MudItem xs="12" md="4">
+                            <MudNumericField @bind-Value="_model.TasaFijaEmpresa" Label="Empresa (%)"
                                 Format="N2" Min="0" Max="100" Culture="@_culture"
                                 Adornment="Adornment.End" AdornmentText="%"
-                                Variant="Variant.Outlined" HelperText="Tasa mensual fija para préstamos de empresa" />
+                                Variant="Variant.Outlined" Margin="Margin.Dense"
+                                HelperText="Tasa mensual fija para préstamos de empresa" />
                         </MudItem>
-                        <MudItem xs="12" md="6">
-                            <MudNumericField @bind-Value="_model.TasaFijaCaja" Label="Tasa Caja de Ahorro (%)"
+                        <MudItem xs="12" md="4">
+                            <MudNumericField @bind-Value="_model.TasaFijaCaja" Label="Caja de Ahorro (%)"
                                 Format="N2" Min="0" Max="100" Culture="@_culture"
                                 Adornment="Adornment.End" AdornmentText="%"
-                                Variant="Variant.Outlined" HelperText="Tasa mensual fija para préstamos de caja" />
+                                Variant="Variant.Outlined" Margin="Margin.Dense"
+                                HelperText="Tasa mensual fija para préstamos de caja" />
+                        </MudItem>
+                        <MudItem xs="12" md="4">
+                            <MudNumericField @bind-Value="_model.TasaFijaDirecto" Label="Préstamos Directos (%)"
+                                Format="N2" Min="0" Max="100" Culture="@_culture"
+                                Adornment="Adornment.End" AdornmentText="%"
+                                Variant="Variant.Outlined" Margin="Margin.Dense"
+                                HelperText="Tasa mensual fija para préstamos directos" />
                         </MudItem>
 
                         <MudItem xs="12">
-                            <MudDivider Class="my-4" />
-                            <MudText Typo="Typo.h6" Class="mb-4">Periodos de Nómina</MudText>
+                            <MudDivider Class="my-2"/>
+                            <MudText Typo="Typo.h6" Class="mb-2">Periodos de Nómina</MudText>
                         </MudItem>
 
                         <MudItem xs="12" md="6">
                             <MudDatePicker Label="Inicio Periodo Semanal" @bind-Date="_model.InicioPeriodoSemanal"
-                                Editable="true" Variant="Variant.Outlined" 
-                                HelperText="Primer periodo del año" />
+                                Editable="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                IsDateDisabledFunc="@_soloEnero"
+                                HelperText="Solo se permite capturar fechas de enero" />
                         </MudItem>
                         <MudItem xs="12" md="6">
                             <MudDatePicker Label="Inicio Periodo Catorcenal" @bind-Date="_model.InicioPeriodoCatorcenal"
-                                Editable="true" Variant="Variant.Outlined"
-                                HelperText="Primer periodo del año" />
+                                Editable="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                IsDateDisabledFunc="@_soloEnero"
+                                HelperText="Solo se permite capturar fechas de enero" />
                         </MudItem>
 
                         <MudItem xs="12">
-                            <MudDivider Class="my-4" />
-                            <MudText Typo="Typo.h6" Class="mb-4">Caja de Ahorro</MudText>
+                            <MudDivider Class="my-1" />
+                            <MudText Typo="Typo.h6" Class="mb-2">Caja de Ahorro</MudText>
                         </MudItem>
 
-                        <MudItem xs="12">
+                        <MudItem xs="12" md="4">
                             <MudDatePicker Label="Fecha de Cierre Anual" @bind-Date="_model.CierreCajaAnual"
-                                Editable="true" Variant="Variant.Outlined"
-                                HelperText="Fecha límite para retiros y liquidación" />
+                                Editable="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                IsDateDisabledFunc="@_soloCierreAnual"
+                                HelperText="Solo se permite capturar fechas de octubre, noviembre o diciembre" />
                         </MudItem>
 
-                        <MudItem xs="12" Class="d-flex justify-end mt-4">
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
+                        <MudItem xs="12" md="4">
+                            <MudDatePicker Label="Fecha de Utilidades" @bind-Date="_model.FechaUtilidades"
+                                Editable="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                IsDateDisabledFunc="@_soloMayo"
+                                HelperText="Solo se permite capturar fechas de mayo" />
+                        </MudItem>
+
+                        <MudItem xs="12" md="4">
+                            <MudDatePicker Label="Fecha de Entrega de Aguinaldo" @bind-Date="_model.FechaAguinaldo"
+                                Editable="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                IsDateDisabledFunc="@_soloDiciembre"
+                                HelperText="Solo se permite capturar fechas de diciembre" />
+                        </MudItem>
+
+                        <MudItem xs="12" Class="d-flex justify-end mt-2">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Medium"
                                 OnClick="GuardarConfiguracion" Disabled="@(!_formIsValid || _saving)"
                                 StartIcon="@(_saving ? null : Icons.Material.Filled.Save)"
                                 Style="border-radius: 8px; text-transform: none; min-width: 150px;">
@@ -112,12 +159,26 @@
     private ParametrosDto _model = new();
     private bool _loading = true;
     private bool _saving = false;
+    private bool _esRegistroNuevo = false;
     private MudForm _form = null!;
     private bool _formIsValid;
+    private int _anioSeleccionado = DateTime.Today.Year;
     private System.Globalization.CultureInfo _culture = System.Globalization.CultureInfo.GetCultureInfo("es-MX");
+
+    // Funciones de validación de mes para los DatePickers
+    private readonly Func<DateTime, bool> _soloEnero        = d => d.Month != 1;
+    private readonly Func<DateTime, bool> _soloMayo         = d => d.Month != 5;
+    private readonly Func<DateTime, bool> _soloDiciembre    = d => d.Month != 12;
+    private readonly Func<DateTime, bool> _soloCierreAnual  = d => d.Month is not (10 or 11 or 12);
 
     protected override async Task OnInitializedAsync()
     {
+        await CargarConfiguracion();
+    }
+
+    private async Task OnAnioChangedAsync(int anio)
+    {
+        _anioSeleccionado = anio;
         await CargarConfiguracion();
     }
 
@@ -126,7 +187,10 @@
         _loading = true;
         try
         {
-            _model = await ParametrosService.GetParametrosAsync();
+            _model = await ParametrosService.GetParametrosAsync(_anioSeleccionado);
+            _esRegistroNuevo = _model.Anio == _anioSeleccionado
+                               && _model.InicioPeriodoSemanal is null
+                               && _model.TasaFijaEmpresa is null;
         }
         catch (Exception ex)
         {
@@ -143,13 +207,15 @@
         await _form.ValidateAsync();
         if (!_formIsValid) return;
 
+        _model.Anio = _anioSeleccionado;
         _saving = true;
         try
         {
             var response = await ParametrosService.SaveParametrosAsync(_model);
             if (response.IsSuccessStatusCode)
             {
-                Snackbar.Add("Configuración guardada exitosamente.", Severity.Success);
+                _esRegistroNuevo = false;
+                Snackbar.Add($"Configuración {_anioSeleccionado} guardada exitosamente.", Severity.Success);
             }
             else
             {

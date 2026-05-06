@@ -47,6 +47,26 @@ public interface IPrestamosService
     Task<bool> CancelarPrestamoAsync(int prestamoId);
 
     /// <summary>
+    /// Evalúa una solicitud de préstamo (Aprobar, Rechazar o Cancelar)
+    /// </summary>
+    Task<bool> EvaluarPrestamoAsync(EvaluarPrestamoDto dto);
+
+    /// <summary>
+    /// Aprueba una solicitud de préstamo y la activa
+    /// </summary>
+    Task<bool> AprobarPrestamoAsync(int prestamoId, DateTime fechaEntrega, string metodoEntrega, string referencia, string? folio, string? notas);
+
+    /// <summary>
+    /// Rechaza una solicitud de préstamo
+    /// </summary>
+    Task<bool> RechazarPrestamoAsync(int prestamoId, string notas);
+
+    /// <summary>
+    /// Cancela una solicitud de préstamo en evaluación
+    /// </summary>
+    Task<bool> CancelarSolicitudAsync(int prestamoId, string notas);
+
+    /// <summary>
     /// Simula la tabla de amortización para previsualización sin persistir
     /// </summary>
     AmortizacionPreviewResultDto SimularAmortizacion(SimularAmortizacionDto dto);

@@ -58,24 +58,12 @@
     <MudTabPanel Text="Préstamos" Icon="@Icons.Material.Filled.AccountBalance" BadgeData="@_prestamos.Count" BadgeColor="Color.Primary">
         <MudPaper Elevation="0" Class="pa-4 mb-4" Style="border-radius: 12px; background: var(--mud-palette-surface);">
             <MudGrid Spacing="2" Justify="Justify.SpaceBetween" Class="align-center">
-                <MudItem xs="12" md="4">
+                <MudItem xs="12" md="6">
                     <MudTextField @bind-Value="_searchString" Placeholder="Buscar por empleado, folio, fondeadora..."
                         Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
                         Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" />
                 </MudItem>
-                <MudItem xs="12" md="3">
-                    <MudSelect T="string" Label="Filtrar por Estado" @bind-Value="_filtroEstado"
-                        Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
-                        SelectedValuesChanged="FiltrarPorEstado">
-                        <MudSelectItem T="string" Value="@("")">Todos</MudSelectItem>
-                        <MudSelectItem T="string" Value="@("A")">Activo</MudSelectItem>
-                        <MudSelectItem T="string" Value="@("P")">Pagado</MudSelectItem>
-                        <MudSelectItem T="string" Value="@("L")">Liquidado</MudSelectItem>
-                        <MudSelectItem T="string" Value="@("C")">Cancelado</MudSelectItem>
-                        <MudSelectItem T="string" Value="@("S")">Suspendido</MudSelectItem>
-                    </MudSelect>
-                </MudItem>
-                <MudItem xs="12" md="5" Class="d-flex justify-end gap-2">                   
+                <MudItem xs="12" md="6" Class="d-flex justify-end gap-2">                   
                     <MudButton Variant="Variant.Outlined" Color="Color.Primary"
                         StartIcon="@Icons.Material.Filled.Refresh"
                         OnClick="CargarPrestamos" Style="text-transform: none;">
@@ -272,7 +260,7 @@
 
     // ── Filtros ──
     private string _searchString = "";
-    private string _filtroEstado = "";
+    private string _filtroEstado = "A";
 
     // ── Activación ──
     private bool _activacionVisible;
@@ -322,9 +310,7 @@
         _loadingPrestamos = true;
         try
         {
-            _prestamos = string.IsNullOrEmpty(_filtroEstado)
-                ? await PrestamosApi.GetTodosAsync()
-                : await PrestamosApi.GetPorEstadoAsync(_filtroEstado);
+            _prestamos = await PrestamosApi.GetPorEstadoAsync(_filtroEstado);
         }
         catch (Exception ex)
         {
@@ -336,10 +322,7 @@
         }
     }
 
-    private async Task FiltrarPorEstado()
-    {
-        await CargarPrestamos();
-    }
+
 
     private Func<PrestamoListDto, bool> _quickFilter => x =>
     {
@@ -476,11 +459,13 @@
 
     private static Color ObtenerColorEstado(string estado) => estado switch
     {
-        "A" => Color.Success,
-        "P" => Color.Info,
-        "L" => Color.Tertiary,
-        "C" => Color.Error,
-        "S" => Color.Warning,
-        _ => Color.Default
+        "E" => Color.Warning,      // En Evaluación / Pendiente de Entrega
+        "A" => Color.Success,      // Activo
+        "L" => Color.Tertiary,     // Liquidado
+        "C" => Color.Error,        // Cancelado
+        "R" => Color.Dark,         // Rechazado
+        "P" => Color.Info,         // Pendiente
+        "S" => Color.Secondary,    // Suspendido
+        _ => Color.Default         // Cualquier otro estado
     };
 }

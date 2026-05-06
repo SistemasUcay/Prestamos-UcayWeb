@@ -33,7 +33,15 @@ public class PrestamosService : IPrestamosService
     {
         var empleado = await _context.Empleados.FindAsync(dto.EmpleadoId)
             ?? throw new InvalidOperationException("El empleado no existe.");
-                
+
+        // Calcular totales desde las amortizaciones enviadas
+        decimal totalPagar = dto.Amortizaciones.Sum(a => a.ImportePago);
+        decimal totalIntereses = dto.Amortizaciones.Sum(a => a.ImporteInteres);
+        decimal totalSolicitud = dto.MontoAprobado + (dto.PrestamosDirectos?.Sum(pd => pd.MontoSolicitado) ?? 0);
+        DateTime fechaUltimoPago = dto.Amortizaciones.Count > 0 
+            ? dto.Amortizaciones.Max(a => a.FechaPago) 
+            : dto.FechaEntrega;
+
         var nuevoPrestamo = new Prestamo
         {
             EmpleadoId = dto.EmpleadoId,
@@ -51,21 +59,66 @@ public class PrestamosService : IPrestamosService
             MetodoEntrega = dto.MetodoEntrega,
             ReferenciaBancaria = dto.ReferenciaBancaria,
             Folio = dto.Folio,
-            Estado = "A",
+            Estado = "E", // La Solicitud se crea con el Estatus [E] En Evaluación
             SueldoLaboral = empleado.SueldoLaboral ?? 0,
-            NumeroCuotas = dto.PlazoMeses,
+            NumeroCuotas = dto.Amortizaciones.Count,
+            ImporteCuotas = dto.Amortizaciones.Count > 0 ? dto.Amortizaciones[0].ImportePago : 0,
             InicioDescuento = dto.FechaEntrega.AddMonths(1),
-            FinalDescuento = dto.FechaEntrega.AddMonths(dto.PlazoMeses),
+            FinalDescuento = fechaUltimoPago,
             AvalCredito = dto.EmpleadoIdAval.HasValue,
             EmpleadoIdaval = dto.EmpleadoIdAval ?? 0,
-            TotalPagar = 0,
-            SaldoPendiente = dto.MontoAprobado
+            TotalPagar = totalPagar,
+            SaldoPendiente = dto.MontoAprobado,
+            TotalSolicitud = totalSolicitud
         };
 
         _context.Prestamos.Add(nuevoPrestamo);
         await _context.SaveChangesAsync();
 
-        await _calculadora.GenerarYGuardarTablaAmortizacionAsync(nuevoPrestamo.PrestamoId);
+        // Guardar las amortizaciones pre-calculadas desde el frontend
+        if (dto.Amortizaciones?.Count > 0)
+        {
+            var amortizaciones = dto.Amortizaciones.Select(a => new PrestamosAmortizacione
+            {
+                PrestamoId = nuevoPrestamo.PrestamoId,
+                NumeroPago = a.NumeroPago,
+                FechaPago = a.FechaPago,
+                InicioPeriodoPago = a.FechaPago.AddMonths(-1),
+                DescripcionPago = $"Cuota {a.NumeroPago}/{dto.Amortizaciones.Count}",
+                TasaInteres = dto.TasaInteresMensual,
+                SaldoInicial = a.NumeroPago > 1 
+                    ? dto.Amortizaciones[a.NumeroPago - 2].SaldoFinal 
+                    : dto.MontoAprobado,
+                ImportePago = a.ImportePago,
+                ImportePagoCapital = a.ImporteCapital,
+                ImportePagoInteres = a.ImporteInteres,
+                PagoExtraCapital = 0,
+                SaldoFinal = a.SaldoFinal,
+                StatusPago = false
+            }).ToList();
+
+            _context.PrestamosAmortizaciones.AddRange(amortizaciones);
+            await _context.SaveChangesAsync();
+        }
+
+        // Guardar préstamos directos
+        if (dto.PrestamosDirectos?.Count > 0)
+        {
+            var prestamosDirectos = dto.PrestamosDirectos.Select((pd, index) => new PrestamoDirecto
+            {
+                PrestamoId = nuevoPrestamo.PrestamoId,
+                Descripcion = pd.Descripcion,
+                MontoSolicitado = pd.MontoSolicitado,
+                TasaMensual = pd.TasaMensual,
+                FechaPago = pd.FechaPago,
+                DiazPlazo = pd.DiazPlazo,
+                MontoIntereses = Math.Round(pd.MontoSolicitado * pd.TasaMensual * (pd.DiazPlazo / 30m), 2),
+                TotalCapitalInteres = pd.MontoSolicitado + Math.Round(pd.MontoSolicitado * pd.TasaMensual * (pd.DiazPlazo / 30m), 2)
+            }).ToList();
+
+            _context.PrestamosDirectos.AddRange(prestamosDirectos);
+            await _context.SaveChangesAsync();
+        }
 
         return nuevoPrestamo.PrestamoId;
     }
@@ -75,6 +128,7 @@ public class PrestamosService : IPrestamosService
     {
         var prestamo = await QueryConNavegacion()
             .Include(p => p.PrestamosAmortizaciones)
+            .Include(p => p.PrestamosDirectos)
             .FirstOrDefaultAsync(p => p.PrestamoId == id);
 
         return _mapper.Map<PrestamoDetalleDto>(prestamo);
@@ -165,6 +219,99 @@ public class PrestamosService : IPrestamosService
         if (prestamo is null || prestamo.Estado != "A") return false;
 
         prestamo.Estado = "C";
+        return await _context.SaveChangesAsync() > 0;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> EvaluarPrestamoAsync(EvaluarPrestamoDto dto)
+    {
+        return dto.Accion?.ToUpper() switch
+        {
+            "APROBAR" => await AprobarPrestamoAsync(
+                dto.PrestamoId,
+                dto.FechaEntrega ?? DateTime.Now,
+                dto.MetodoEntrega ?? "Transferencia",
+                dto.Referencia ?? "Aprobado",
+                dto.Folio,
+                dto.Notas),
+            "RECHAZAR" => await RechazarPrestamoAsync(dto.PrestamoId, dto.Notas ?? "Rechazado"),
+            "CANCELAR" => await CancelarSolicitudAsync(dto.PrestamoId, dto.Notas ?? "Cancelado"),
+            _ => throw new InvalidOperationException("Acción de evaluación no válida. Use: Aprobar, Rechazar o Cancelar.")
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> AprobarPrestamoAsync(int prestamoId, DateTime fechaEntrega, string metodoEntrega, string referencia, string? folio, string? notas)
+    {
+        var prestamo = await _context.Prestamos
+            .Include(p => p.Empleado)
+            .FirstOrDefaultAsync(p => p.PrestamoId == prestamoId);
+
+        if (prestamo is null)
+            throw new InvalidOperationException("El préstamo no existe.");
+
+        if (prestamo.Estado != "E")
+            throw new InvalidOperationException("Solo se pueden aprobar préstamos en evaluación.");
+
+        prestamo.Estado = "A"; // Activo
+        prestamo.FechaDeposito = fechaEntrega;
+        prestamo.MetodoEntrega = metodoEntrega;
+        prestamo.ReferenciaBancaria = referencia;
+
+        if (!string.IsNullOrEmpty(folio))
+            prestamo.Folio = folio;
+
+        prestamo.InicioDescuento = fechaEntrega.AddMonths(1);
+        prestamo.FinalDescuento = fechaEntrega.AddMonths(prestamo.PlazoMeses);
+
+        await _context.SaveChangesAsync();
+
+        await _calculadora.GenerarYGuardarTablaAmortizacionAsync(prestamo.PrestamoId);
+
+        return true;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> RechazarPrestamoAsync(int prestamoId, string notas)
+    {
+        ArgumentNullException.ThrowIfNull(notas);
+
+        if (string.IsNullOrWhiteSpace(notas))
+            throw new InvalidOperationException("Debe proporcionar el motivo del rechazo.");
+
+        var prestamo = await _context.Prestamos.FindAsync(prestamoId);
+
+        if (prestamo is null)
+            throw new InvalidOperationException("El préstamo no existe.");
+
+        if (prestamo.Estado != "E")
+            throw new InvalidOperationException("Solo se pueden rechazar préstamos en evaluación.");
+
+        prestamo.Estado = "R"; // Rechazado
+        prestamo.DestinoCredito = $"RECHAZADO: {notas}";
+
+        return await _context.SaveChangesAsync() > 0;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> CancelarSolicitudAsync(int prestamoId, string notas)
+    {
+        ArgumentNullException.ThrowIfNull(notas);
+
+        if (string.IsNullOrWhiteSpace(notas))
+            throw new InvalidOperationException("Debe proporcionar el motivo de la cancelación.");
+
+        var prestamo = await _context.Prestamos.FindAsync(prestamoId);
+
+        if (prestamo is null)
+            throw new InvalidOperationException("El préstamo no existe.");
+
+        if (prestamo.Estado != "E")
+            throw new InvalidOperationException("Solo se pueden cancelar préstamos en evaluación.");
+
+        prestamo.Estado = "C"; // Cancelado
+        prestamo.DestinoCredito = $"CANCELADO: {notas}";
+
         return await _context.SaveChangesAsync() > 0;
     }
 

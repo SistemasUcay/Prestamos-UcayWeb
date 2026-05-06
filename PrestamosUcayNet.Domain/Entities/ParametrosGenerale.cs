@@ -6,9 +6,9 @@ namespace PrestamosUcayNet.Domain.Entities;
 public partial class ParametrosGenerale
 {
     /// <summary>
-    /// Identificador de Parametros
+    /// Año fiscal al que corresponden los parámetros (funciona como identificador único)
     /// </summary>
-    public int ParametrosGeneralesId { get; set; }
+    public int Anio { get; set; }
 
     /// <summary>
     /// Fecha Inicial del primer periodo semanal del Año para el sistema de Nómina
@@ -31,7 +31,22 @@ public partial class ParametrosGenerale
     public decimal? TasaFijaCaja { get; set; }
 
     /// <summary>
+    /// Tasa Fija para Préstamos Directos
+    /// </summary>
+    public decimal? TasaFijaDirecto { get; set; }
+
+    /// <summary>
     /// Fecha de Cierre para la Caja de Ahorro
     /// </summary>
     public DateTime? CierreCajaAnual { get; set; }
+
+    /// <summary>
+    /// Fecha de Utilidades
+    /// </summary>
+    public DateTime? FechaUtilidades { get; set; }
+
+    /// <summary>
+    /// Fecha de Entrega de Aguinaldo
+    /// </summary>
+    public DateTime? FechaAguinaldo { get; set; }
 }

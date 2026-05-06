@@ -11,12 +11,9 @@ public class ParametrosProfile : Profile
 {
     public ParametrosProfile()
     {
-        // ParametrosGenerale → ParametrosDto
         CreateMap<ParametrosGenerale, ParametrosDto>();
 
-        // ParametrosDto → ParametrosGenerale
-        // Al guardar, la entidad ya existe rastreada; ParametrosGeneralesId no se sobreescribe.
-        CreateMap<ParametrosDto, ParametrosGenerale>()
-            .ForMember(d => d.ParametrosGeneralesId, opt => opt.Ignore());
+        // Al guardar se mapea todo incluyendo Anio (PK del registro)
+        CreateMap<ParametrosDto, ParametrosGenerale>();
     }
 }

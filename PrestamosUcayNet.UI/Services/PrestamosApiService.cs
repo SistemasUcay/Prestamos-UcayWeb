@@ -91,4 +91,51 @@ public class PrestamosApiService
         var response = await _http.PostAsync($"api/prestamos/{prestamoId}/cancelar", null);
         return response.IsSuccessStatusCode;
     }
+
+    /// <summary>
+    /// Evalúa una solicitud de préstamo (Aprobar, Rechazar o Cancelar)
+    /// </summary>
+    public async Task<bool> EvaluarAsync(EvaluarPrestamoDto dto)
+    {
+        var response = await _http.PostAsJsonAsync("api/prestamos/evaluar", dto);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>
+    /// Aprueba una solicitud de préstamo
+    /// </summary>
+    public async Task<bool> AprobarAsync(int prestamoId, DateTime fechaEntrega, string metodoEntrega, string referencia, string? folio = null, string? notas = null)
+    {
+        var request = new
+        {
+            FechaEntrega = fechaEntrega,
+            MetodoEntrega = metodoEntrega,
+            Referencia = referencia,
+            Folio = folio,
+            Notas = notas
+        };
+
+        var response = await _http.PostAsJsonAsync($"api/prestamos/{prestamoId}/aprobar", request);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>
+    /// Rechaza una solicitud de préstamo
+    /// </summary>
+    public async Task<bool> RechazarAsync(int prestamoId, string notas)
+    {
+        var request = new { Notas = notas };
+        var response = await _http.PostAsJsonAsync($"api/prestamos/{prestamoId}/rechazar", request);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>
+    /// Cancela una solicitud de préstamo en evaluación
+    /// </summary>
+    public async Task<bool> CancelarSolicitudAsync(int prestamoId, string notas)
+    {
+        var request = new { Notas = notas };
+        var response = await _http.PostAsJsonAsync($"api/prestamos/{prestamoId}/cancelar-solicitud", request);
+        return response.IsSuccessStatusCode;
+    }
 }

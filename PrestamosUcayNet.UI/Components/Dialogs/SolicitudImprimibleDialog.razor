@@ -1,0 +1,714 @@
+@using PrestamosUcayNet.Application.DTOs
+@using PrestamosUcayNet.UI.Services
+@using MudBlazor
+@using Microsoft.AspNetCore.Components
+@using System.Text
+@inject PrestamosApiService PrestamosApi
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Solicitud de Préstamo #@PrestamoId</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <div class="d-flex justify-center align-center" style="min-height: 300px;">
+                <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+            </div>
+        }
+        else if (_prestamo == null)
+        {
+            <MudAlert Severity="Severity.Error">No se pudo cargar la información del préstamo.</MudAlert>
+        }
+        else
+        {
+            <div id="solicitud-imprimible" style="padding: 20px; font-family: Arial, sans-serif; max-width: 210mm;">
+                <!-- Encabezado -->
+                <div style="text-align: center; margin-bottom: 20px; border-bottom: 3px solid #1976d2; padding-bottom: 10px;">
+                    <h2 style="margin: 0; color: #1976d2; font-size: 20px;">SOLICITUD DE PRÉSTAMO</h2>
+                    <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px;">
+                        <span>Folio: <strong>@(_prestamo.Folio ?? "N/A")</strong></span>
+                        <span>Fecha: <strong>@_prestamo.FechaSolicitud.ToString("dd/MM/yyyy")</strong></span>
+                        <span>Estado: <strong>@_prestamo.EstadoDescripcion</strong></span>
+                    </div>
+                </div>
+
+                <!-- Contenido en 2 columnas -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+
+                    <!-- Columna Izquierda -->
+                    <div>
+                        <!-- Datos del Solicitante -->
+                        <div style="margin-bottom: 15px;">
+                            <h3 style="color: #1976d2; font-size: 14px; margin: 0 0 8px 0; padding-bottom: 3px; border-bottom: 2px solid #1976d2;">
+                                Datos del Solicitante
+                            </h3>
+                            <table style="width: 100%; font-size: 11px;">
+                                <tr>
+                                    <td style="padding: 4px 0; font-weight: bold; width: 40%;">Nombre:</td>
+                                    <td style="padding: 4px 0;">@_prestamo.NombreEmpleado</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px 0; font-weight: bold;">Sueldo:</td>
+                                    <td style="padding: 4px 0; color: #1976d2; font-weight: bold;">@_prestamo.SueldoLaboral.ToString("C2")</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px 0; font-weight: bold;">Requiere Aval:</td>
+                                    <td style="padding: 4px 0;">@(_prestamo.AvalCredito ? "Sí" : "No")</td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <!-- Información Financiera -->
+                        <div style="margin-bottom: 15px;">
+                            <h3 style="color: #1976d2; font-size: 14px; margin: 0 0 8px 0; padding-bottom: 3px; border-bottom: 2px solid #1976d2;">
+                                Información Financiera
+                            </h3>
+                            <table style="width: 100%; font-size: 11px;">
+                                <tr>
+                                    <td style="padding: 4px 0; font-weight: bold; width: 40%;">Monto Solicitado:</td>
+                                    <td style="padding: 4px 0; color: #1976d2; font-weight: bold; font-size: 14px;">@_prestamo.MontoAprobado.ToString("C2")</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px 0; font-weight: bold;">Tasa Anual:</td>
+                                    <td style="padding: 4px 0;">@_prestamo.TasaInteresAnual.ToString("F2")%</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px 0; font-weight: bold;">Tasa Mensual:</td>
+                                    <td style="padding: 4px 0;">@_prestamo.TasaInteresMensual.ToString("F2")%</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px 0; font-weight: bold;">Plazo:</td>
+                                    <td style="padding: 4px 0; font-weight: bold;">@_prestamo.PlazoMeses meses</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px 0; font-weight: bold;">Cuota Periódica:</td>
+                                    <td style="padding: 4px 0; font-weight: bold;">@_prestamo.ImporteCuotas.ToString("C2")</td>
+                                </tr>
+                                <tr style="border-top: 1px solid #ddd;">
+                                    <td style="padding: 4px 0; font-weight: bold;">Total a Pagar:</td>
+                                    <td style="padding: 4px 0; color: #d32f2f; font-weight: bold; font-size: 13px;">@_prestamo.TotalPagar.ToString("C2")</td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        @if (_prestamo.Estado == "A" || _prestamo.Estado == "P" || _prestamo.Estado == "L")
+                        {
+                            <!-- Fechas de Descuento -->
+                            <div style="margin-bottom: 15px;">
+                                <h3 style="color: #1976d2; font-size: 14px; margin: 0 0 8px 0; padding-bottom: 3px; border-bottom: 2px solid #1976d2;">
+                                    Periodo de Descuento
+                                </h3>
+                                <table style="width: 100%; font-size: 11px;">
+                                    <tr>
+                                        <td style="padding: 4px 0; font-weight: bold; width: 40%;">Inicio:</td>
+                                        <td style="padding: 4px 0;">@_prestamo.InicioDescuento.ToString("dd/MM/yyyy")</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 4px 0; font-weight: bold;">Fin:</td>
+                                        <td style="padding: 4px 0;">@_prestamo.FinalDescuento.ToString("dd/MM/yyyy")</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Columna Derecha -->
+                    <div>
+                        <!-- Detalles del Préstamo -->
+                        <div style="margin-bottom: 15px;">
+                            <h3 style="color: #1976d2; font-size: 14px; margin: 0 0 8px 0; padding-bottom: 3px; border-bottom: 2px solid #1976d2;">
+                                Detalles del Préstamo
+                            </h3>
+                            <table style="width: 100%; font-size: 11px;">
+                                <tr>
+                                    <td style="padding: 4px 0; font-weight: bold; width: 40%;">Fondeadora:</td>
+                                    <td style="padding: 4px 0;">@_prestamo.NombreFondeadora</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px 0; font-weight: bold;">Tipo Préstamo:</td>
+                                    <td style="padding: 4px 0;">@_prestamo.TipoPrestamoDescripcion</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px 0; font-weight: bold;">Frecuencia Pago:</td>
+                                    <td style="padding: 4px 0;">@_prestamo.TipoPagoDescripcion</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px 0; font-weight: bold; vertical-align: top;">Destino:</td>
+                                    <td style="padding: 4px 0;">@_prestamo.DestinoCredito</td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        @if (_prestamo.Estado == "A" || _prestamo.Estado == "P" || _prestamo.Estado == "L")
+                        {
+                            <!-- Información de Entrega -->
+                            <div style="margin-bottom: 15px;">
+                                <h3 style="color: #1976d2; font-size: 14px; margin: 0 0 8px 0; padding-bottom: 3px; border-bottom: 2px solid #1976d2;">
+                                    Entrega del Préstamo
+                                </h3>
+                                <table style="width: 100%; font-size: 11px;">
+                                    <tr>
+                                        <td style="padding: 4px 0; font-weight: bold; width: 40%;">Fecha Aprobación:</td>
+                                        <td style="padding: 4px 0;">@_prestamo.FechaAprobado.ToString("dd/MM/yyyy")</td>
+                                    </tr>
+                                    @if (_prestamo.FechaDeposito.HasValue)
+                                    {
+                                        <tr>
+                                            <td style="padding: 4px 0; font-weight: bold;">Fecha Depósito:</td>
+                                            <td style="padding: 4px 0;">@_prestamo.FechaDeposito.Value.ToString("dd/MM/yyyy")</td>
+                                        </tr>
+                                    }
+                                    @if (!string.IsNullOrEmpty(_prestamo.MetodoEntrega))
+                                    {
+                                        <tr>
+                                            <td style="padding: 4px 0; font-weight: bold;">Método:</td>
+                                            <td style="padding: 4px 0;">@_prestamo.MetodoEntrega</td>
+                                        </tr>
+                                    }
+                                    @if (!string.IsNullOrEmpty(_prestamo.ReferenciaBancaria))
+                                    {
+                                        <tr>
+                                            <td style="padding: 4px 0; font-weight: bold;">Referencia:</td>
+                                            <td style="padding: 4px 0;">@_prestamo.ReferenciaBancaria</td>
+                                        </tr>
+                                    }
+                                </table>
+                            </div>
+                        }
+
+                        <!-- Resumen Visual -->
+                        <div style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; border-left: 4px solid #1976d2;">
+                            <h4 style="margin: 0 0 8px 0; color: #1976d2; font-size: 12px;">Resumen del Crédito</h4>
+                            <div style="font-size: 11px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                    <span>Número de Cuotas:</span>
+                                    <strong>@_prestamo.NumeroCuotas</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                    <span>Saldo Pendiente:</span>
+                                    <strong style="color: #d32f2f;">@_prestamo.SaldoPendiente.ToString("C2")</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Firmas -->
+                <div style="margin-top: 30px; padding-top: 15px; border-top: 2px solid #333;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div style="text-align: center;">
+                            <div style="border-top: 1px solid #333; padding-top: 5px; margin-top: 50px;">
+                                <strong style="font-size: 11px;">Firma del Solicitante</strong><br/>
+                                <span style="font-size: 10px; color: #666;">@_prestamo.NombreEmpleado</span>
+                            </div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="border-top: 1px solid #333; padding-top: 5px; margin-top: 50px;">
+                                <strong style="font-size: 11px;">Firma de Autorización</strong><br/>
+                                <span style="font-size: 10px; color: #666;">@_prestamo.NombreFondeadora</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla de Amortización (nueva página) -->
+                @if (_prestamo.TablaAmortizacion != null && _prestamo.TablaAmortizacion.Any())
+                {
+                    <div style="margin-top: 40px; page-break-before: always;">
+                        <h3 style="color: #1976d2; font-size: 16px; border-bottom: 2px solid #1976d2; padding-bottom: 5px; margin-bottom: 15px;">
+                            Tabla de Amortización
+                        </h3>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
+                            <thead style="background-color: #1976d2; color: white;">
+                                <tr>
+                                    <th style="padding: 6px; text-align: center; border: 1px solid #ddd;">#</th>
+                                    <th style="padding: 6px; text-align: center; border: 1px solid #ddd;">Fecha</th>
+                                    <th style="padding: 6px; text-align: right; border: 1px solid #ddd;">Cuota</th>
+                                    <th style="padding: 6px; text-align: right; border: 1px solid #ddd;">Capital</th>
+                                    <th style="padding: 6px; text-align: right; border: 1px solid #ddd;">Interés</th>
+                                    <th style="padding: 6px; text-align: right; border: 1px solid #ddd;">Extra</th>
+                                    <th style="padding: 6px; text-align: right; border: 1px solid #ddd;">Saldo</th>
+                                    <th style="padding: 6px; text-align: center; border: 1px solid #ddd;">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var cuota in _prestamo.TablaAmortizacion)
+                                {
+                                    <tr style="@(cuota.Pagado ? "background-color: #e8f5e9;" : "")">
+                                        <td style="padding: 5px; text-align: center; border: 1px solid #ddd;">@cuota.NumeroPago</td>
+                                        <td style="padding: 5px; text-align: center; border: 1px solid #ddd;">@cuota.FechaPago.ToString("dd/MM/yyyy")</td>
+                                        <td style="padding: 5px; text-align: right; border: 1px solid #ddd;">@cuota.ImportePago.ToString("N2")</td>
+                                        <td style="padding: 5px; text-align: right; border: 1px solid #ddd;">@cuota.ImporteCapital.ToString("N2")</td>
+                                        <td style="padding: 5px; text-align: right; border: 1px solid #ddd;">@cuota.ImporteInteres.ToString("N2")</td>
+                                        <td style="padding: 5px; text-align: right; border: 1px solid #ddd;">@(cuota.PagoExtra > 0 ? cuota.PagoExtra.ToString("N2") : "-")</td>
+                                        <td style="padding: 5px; text-align: right; border: 1px solid #ddd; font-weight: bold;">@cuota.SaldoFinal.ToString("N2")</td>
+                                        <td style="padding: 5px; text-align: center; border: 1px solid #ddd;">
+                                            @if (cuota.Pagado)
+                                            {
+                                                <span style="color: #2e7d32; font-weight: bold;">✓</span>
+                                            }
+                                            else
+                                            {
+                                                <span style="color: #757575;">○</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot style="background-color: #f5f5f5; font-weight: bold;">
+                                <tr>
+                                    <td colspan="2" style="padding: 6px; text-align: right; border: 1px solid #ddd;">TOTALES:</td>
+                                    <td style="padding: 6px; text-align: right; border: 1px solid #ddd;">@_prestamo.TablaAmortizacion.Sum(x => x.ImportePago).ToString("C2")</td>
+                                    <td style="padding: 6px; text-align: right; border: 1px solid #ddd;">@_prestamo.TablaAmortizacion.Sum(x => x.ImporteCapital).ToString("C2")</td>
+                                    <td style="padding: 6px; text-align: right; border: 1px solid #ddd;">@_prestamo.TablaAmortizacion.Sum(x => x.ImporteInteres).ToString("C2")</td>
+                                    <td style="padding: 6px; text-align: right; border: 1px solid #ddd;">@_prestamo.TablaAmortizacion.Sum(x => x.PagoExtra).ToString("C2")</td>
+                                    <td colspan="2" style="padding: 6px; border: 1px solid #ddd;"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                }
+
+                @* ── Préstamos Directos ── *@
+                @if (_prestamo.PrestamosDirectos != null && _prestamo.PrestamosDirectos.Any())
+                {
+                    <div style="margin-top: 30px;">
+                        <h3 style="color: #1976d2; font-size: 14px; border-bottom: 2px solid #1976d2; padding-bottom: 5px; margin-bottom: 10px;">
+                            Préstamos Directos
+                        </h3>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
+                            <thead style="background-color: #1976d2; color: white;">
+                                <tr>
+                                    <th style="padding: 6px; text-align: center; border: 1px solid #ddd;">#</th>
+                                    <th style="padding: 6px; text-align: left; border: 1px solid #ddd;">Descripción</th>
+                                    <th style="padding: 6px; text-align: right; border: 1px solid #ddd;">Monto</th>
+                                    <th style="padding: 6px; text-align: right; border: 1px solid #ddd;">Tasa Mensual</th>
+                                    <th style="padding: 6px; text-align: center; border: 1px solid #ddd;">Días Plazo</th>
+                                    <th style="padding: 6px; text-align: center; border: 1px solid #ddd;">Fecha Pago</th>
+                                    <th style="padding: 6px; text-align: right; border: 1px solid #ddd;">Intereses</th>
+                                    <th style="padding: 6px; text-align: right; border: 1px solid #ddd;">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var (pd, i) in _prestamo.PrestamosDirectos.Select((p, i) => (p, i)))
+                                {
+                                    <tr style="@(i % 2 == 0 ? "" : "background-color: #f9f9f9;")">
+                                        <td style="padding: 5px; text-align: center; border: 1px solid #ddd;">@(i + 1)</td>
+                                        <td style="padding: 5px; border: 1px solid #ddd;">@pd.Descripcion</td>
+                                        <td style="padding: 5px; text-align: right; border: 1px solid #ddd;">@pd.MontoSolicitado.ToString("N2")</td>
+                                        <td style="padding: 5px; text-align: right; border: 1px solid #ddd;">@pd.TasaMensual.ToString("N4")%</td>
+                                        <td style="padding: 5px; text-align: center; border: 1px solid #ddd;">@pd.DiazPlazo</td>
+                                        <td style="padding: 5px; text-align: center; border: 1px solid #ddd;">@pd.FechaPago.ToString("dd/MM/yyyy")</td>
+                                        <td style="padding: 5px; text-align: right; border: 1px solid #ddd;">@pd.MontoIntereses.ToString("N2")</td>
+                                        <td style="padding: 5px; text-align: right; border: 1px solid #ddd; font-weight: bold;">@pd.TotalCapitalInteres.ToString("N2")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot style="background-color: #f5f5f5; font-weight: bold;">
+                                <tr>
+                                    <td colspan="2" style="padding: 6px; text-align: right; border: 1px solid #ddd;">TOTALES:</td>
+                                    <td style="padding: 6px; text-align: right; border: 1px solid #ddd;">@_prestamo.PrestamosDirectos.Sum(x => x.MontoSolicitado).ToString("C2")</td>
+                                    <td colspan="3" style="border: 1px solid #ddd;"></td>
+                                    <td style="padding: 6px; text-align: right; border: 1px solid #ddd;">@_prestamo.PrestamosDirectos.Sum(x => x.MontoIntereses).ToString("C2")</td>
+                                    <td style="padding: 6px; text-align: right; border: 1px solid #ddd; color: #d32f2f;">@_prestamo.PrestamosDirectos.Sum(x => x.TotalCapitalInteres).ToString("C2")</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                }
+
+                <!-- Pie de documento -->
+                <div style="margin-top: 20px; text-align: center; font-size: 10px; color: #999;">
+                    <p style="margin: 0;">Documento generado el @DateTime.Now.ToString("dd/MM/yyyy HH:mm")</p>
+                    <p style="margin: 0;">Sistema de Gestión de Préstamos UcayNet</p>
+                </div>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.PictureAsPdf" 
+                   OnClick="@GenerarPDF"
+                   Disabled="@(_loading || _prestamo == null || _generandoPdf)"
+                   Variant="Variant.Filled">
+            @if (_generandoPdf)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Generando PDF...</span>
+            }
+            else
+            {
+                <span>Descargar PDF</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    public MudBlazor.IDialogReference? DialogReference { get; set; }
+
+    [Parameter]
+    public int PrestamoId { get; set; }
+
+    private PrestamoDetalleDto? _prestamo;
+    private bool _loading = true;
+    private bool _generandoPdf = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarPrestamo();
+    }
+
+    private async Task CargarPrestamo()
+    {
+        _loading = true;
+        try
+        {
+            _prestamo = await PrestamosApi.GetByIdAsync(PrestamoId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar el préstamo: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task GenerarPDF()
+    {
+        if (_prestamo == null) return;
+
+        _generandoPdf = true;
+        StateHasChanged();
+
+        try
+        {
+            var html = GenerarHTMLCompleto();
+
+            await JSRuntime.InvokeVoidAsync("generarPDFDesdeHTML", 
+                html, 
+                $"Solicitud_Prestamo_{_prestamo.Id}_{DateTime.Now:yyyyMMdd}.pdf");
+
+            Snackbar.Add("PDF generado exitosamente", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al generar PDF: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _generandoPdf = false;
+            StateHasChanged();
+        }
+    }
+
+    private string GenerarHTMLCompleto()
+    {
+        if (_prestamo == null) return string.Empty;
+
+        var sb = new StringBuilder();
+
+        sb.AppendLine(@"<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8'>
+    <style>
+        @page { size: letter; margin: 15mm; }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+        .container { max-width: 210mm; }
+        h2 { color: #1976d2; margin: 0; font-size: 20px; }
+        h3 { color: #1976d2; font-size: 14px; margin: 0 0 8px 0; padding-bottom: 3px; border-bottom: 2px solid #1976d2; }
+        h4 { margin: 0 0 8px 0; color: #1976d2; font-size: 12px; }
+        table { width: 100%; font-size: 11px; }
+        table td { padding: 4px 0; }
+        .header { text-align: center; margin-bottom: 20px; border-bottom: 3px solid #1976d2; padding-bottom: 10px; }
+        .header-info { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; }
+        .two-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        .section { margin-bottom: 15px; }
+        .highlight { color: #1976d2; font-weight: bold; }
+        .bold { font-weight: bold; }
+        .resumen { background-color: #f5f5f5; padding: 10px; border-radius: 4px; border-left: 4px solid #1976d2; }
+        .firmas { margin-top: 30px; padding-top: 15px; border-top: 2px solid #333; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .firma-box { text-align: center; }
+        .firma-linea { border-top: 1px solid #333; padding-top: 5px; margin-top: 50px; font-size: 11px; }
+        .table-amortizacion { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 15px; }
+        .table-amortizacion th { background-color: #1976d2; color: white; padding: 6px; text-align: center; border: 1px solid #ddd; }
+        .table-amortizacion td { padding: 5px; border: 1px solid #ddd; }
+        .table-amortizacion tfoot { background-color: #f5f5f5; font-weight: bold; }
+        .pagado { background-color: #e8f5e9; }
+        .footer { text-align: center; margin-top: 20px; font-size: 10px; color: #999; }
+        .page-break { page-break-before: always; margin-top: 40px; }
+    </style>
+</head>
+<body>
+    <div class='container'>");
+
+        // Encabezado
+        sb.AppendLine($@"
+        <div class='header'>
+            <h2>SOLICITUD DE PRÉSTAMO</h2>
+            <div class='header-info'>
+                <span>Folio: <strong>{_prestamo.Folio ?? "N/A"}</strong></span>
+                <span>Fecha: <strong>{_prestamo.FechaSolicitud:dd/MM/yyyy}</strong></span>
+                <span>Estado: <strong>{_prestamo.EstadoDescripcion}</strong></span>
+            </div>
+        </div>");
+
+        // Contenido en 2 columnas
+        sb.AppendLine("<div class='two-columns'>");
+
+        // Columna Izquierda
+        sb.AppendLine("<div>");
+
+        // Datos del Solicitante
+        sb.AppendLine($@"
+            <div class='section'>
+                <h3>Datos del Solicitante</h3>
+                <table>
+                    <tr><td class='bold' style='width: 40%;'>Nombre:</td><td>{_prestamo.NombreEmpleado}</td></tr>
+                    <tr><td class='bold'>Sueldo:</td><td class='highlight'>{_prestamo.SueldoLaboral:C2}</td></tr>
+                    <tr><td class='bold'>Requiere Aval:</td><td>{(_prestamo.AvalCredito ? "Sí" : "No")}</td></tr>
+                </table>
+            </div>");
+
+        // Información Financiera
+        sb.AppendLine($@"
+            <div class='section'>
+                <h3>Información Financiera</h3>
+                <table>
+                    <tr><td class='bold' style='width: 40%;'>Monto Solicitado:</td><td class='highlight' style='font-size: 14px;'>{_prestamo.MontoAprobado:C2}</td></tr>
+                    <tr><td class='bold'>Tasa Anual:</td><td>{_prestamo.TasaInteresAnual:F2}%</td></tr>
+                    <tr><td class='bold'>Tasa Mensual:</td><td>{_prestamo.TasaInteresMensual:F2}%</td></tr>
+                    <tr><td class='bold'>Plazo:</td><td class='bold'>{_prestamo.PlazoMeses} meses</td></tr>
+                    <tr><td class='bold'>Cuota Periódica:</td><td class='bold'>{_prestamo.ImporteCuotas:C2}</td></tr>
+                    <tr style='border-top: 1px solid #ddd;'><td class='bold'>Total a Pagar:</td><td style='color: #d32f2f; font-weight: bold; font-size: 13px;'>{_prestamo.TotalPagar:C2}</td></tr>
+                </table>
+            </div>");
+
+        // Fechas de Descuento (si aplica)
+        if (_prestamo.Estado is "A" or "P" or "L")
+        {
+            sb.AppendLine($@"
+            <div class='section'>
+                <h3>Periodo de Descuento</h3>
+                <table>
+                    <tr><td class='bold' style='width: 40%;'>Inicio:</td><td>{_prestamo.InicioDescuento:dd/MM/yyyy}</td></tr>
+                    <tr><td class='bold'>Fin:</td><td>{_prestamo.FinalDescuento:dd/MM/yyyy}</td></tr>
+                </table>
+            </div>");
+        }
+
+        sb.AppendLine("</div>"); // Fin columna izquierda
+
+        // Columna Derecha
+        sb.AppendLine("<div>");
+
+        // Detalles del Préstamo
+        sb.AppendLine($@"
+            <div class='section'>
+                <h3>Detalles del Préstamo</h3>
+                <table>
+                    <tr><td class='bold' style='width: 40%;'>Fondeadora:</td><td>{_prestamo.NombreFondeadora}</td></tr>
+                    <tr><td class='bold'>Tipo Préstamo:</td><td>{_prestamo.TipoPrestamoDescripcion}</td></tr>
+                    <tr><td class='bold'>Frecuencia Pago:</td><td>{_prestamo.TipoPagoDescripcion}</td></tr>
+                    <tr><td class='bold' style='vertical-align: top;'>Destino:</td><td>{_prestamo.DestinoCredito}</td></tr>
+                </table>
+            </div>");
+
+        // Información de Entrega (si aplica)
+        if (_prestamo.Estado is "A" or "P" or "L")
+        {
+            sb.AppendLine($@"
+            <div class='section'>
+                <h3>Entrega del Préstamo</h3>
+                <table>
+                    <tr><td class='bold' style='width: 40%;'>Fecha Aprobación:</td><td>{_prestamo.FechaAprobado:dd/MM/yyyy}</td></tr>");
+
+            if (_prestamo.FechaDeposito.HasValue)
+            {
+                sb.AppendLine($"<tr><td class='bold'>Fecha Depósito:</td><td>{_prestamo.FechaDeposito.Value:dd/MM/yyyy}</td></tr>");
+            }
+            if (!string.IsNullOrEmpty(_prestamo.MetodoEntrega))
+            {
+                sb.AppendLine($"<tr><td class='bold'>Método:</td><td>{_prestamo.MetodoEntrega}</td></tr>");
+            }
+            if (!string.IsNullOrEmpty(_prestamo.ReferenciaBancaria))
+            {
+                sb.AppendLine($"<tr><td class='bold'>Referencia:</td><td>{_prestamo.ReferenciaBancaria}</td></tr>");
+            }
+
+            sb.AppendLine("</table></div>");
+        }
+
+        // Resumen Visual
+        sb.AppendLine($@"
+            <div class='resumen'>
+                <h4>Resumen del Crédito</h4>
+                <div style='font-size: 11px;'>
+                    <div style='display: flex; justify-content: space-between; margin-bottom: 4px;'>
+                        <span>Número de Cuotas:</span><strong>{_prestamo.NumeroCuotas}</strong>
+                    </div>
+                    <div style='display: flex; justify-content: space-between;'>
+                        <span>Saldo Pendiente:</span><strong style='color: #d32f2f;'>{_prestamo.SaldoPendiente:C2}</strong>
+                    </div>
+                </div>
+            </div>");
+
+        sb.AppendLine("</div>"); // Fin columna derecha
+        sb.AppendLine("</div>"); // Fin two-columns
+
+        // Firmas
+        sb.AppendLine($@"
+        <div class='firmas'>
+            <div class='firma-box'>
+                <div class='firma-linea'>
+                    <strong>Firma del Solicitante</strong><br/>
+                    <span style='font-size: 10px; color: #666;'>{_prestamo.NombreEmpleado}</span>
+                </div>
+            </div>
+            <div class='firma-box'>
+                <div class='firma-linea'>
+                    <strong>Firma de Autorización</strong><br/>
+                    <span style='font-size: 10px; color: #666;'>{_prestamo.NombreFondeadora}</span>
+                </div>
+            </div>
+        </div>");
+
+        // Tabla de Amortización
+        if (_prestamo.TablaAmortizacion != null && _prestamo.TablaAmortizacion.Any())
+        {
+            sb.AppendLine(@"
+        <div class='page-break'>
+            <h3 style='font-size: 16px; border-bottom: 2px solid #1976d2; padding-bottom: 5px; margin-bottom: 15px;'>Tabla de Amortización</h3>
+            <table class='table-amortizacion'>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Fecha</th>
+                        <th>Cuota</th>
+                        <th>Capital</th>
+                        <th>Interés</th>
+                        <th>Extra</th>
+                        <th>Saldo</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>");
+
+            foreach (var cuota in _prestamo.TablaAmortizacion)
+            {
+                var rowClass = cuota.Pagado ? " class='pagado'" : "";
+                var estadoIcon = cuota.Pagado ? "✓" : "○";
+
+                sb.AppendLine($@"
+                    <tr{rowClass}>
+                        <td style='text-align: center;'>{cuota.NumeroPago}</td>
+                        <td style='text-align: center;'>{cuota.FechaPago:dd/MM/yyyy}</td>
+                        <td style='text-align: right;'>{cuota.ImportePago:N2}</td>
+                        <td style='text-align: right;'>{cuota.ImporteCapital:N2}</td>
+                        <td style='text-align: right;'>{cuota.ImporteInteres:N2}</td>
+                        <td style='text-align: right;'>{(cuota.PagoExtra > 0 ? cuota.PagoExtra.ToString("N2") : "-")}</td>
+                        <td style='text-align: right; font-weight: bold;'>{cuota.SaldoFinal:N2}</td>
+                        <td style='text-align: center;'>{estadoIcon}</td>
+                    </tr>");
+            }
+
+            var totalPago = _prestamo.TablaAmortizacion.Sum(x => x.ImportePago);
+            var totalCapital = _prestamo.TablaAmortizacion.Sum(x => x.ImporteCapital);
+            var totalInteres = _prestamo.TablaAmortizacion.Sum(x => x.ImporteInteres);
+            var totalExtra = _prestamo.TablaAmortizacion.Sum(x => x.PagoExtra);
+
+            sb.AppendLine($@"
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan='2' style='text-align: right; padding: 6px;'>TOTALES:</td>
+                        <td style='text-align: right; padding: 6px;'>{totalPago:C2}</td>
+                        <td style='text-align: right; padding: 6px;'>{totalCapital:C2}</td>
+                        <td style='text-align: right; padding: 6px;'>{totalInteres:C2}</td>
+                        <td style='text-align: right; padding: 6px;'>{totalExtra:C2}</td>
+                        <td colspan='2'></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>");
+        }
+
+        // Préstamos Directos
+        if (_prestamo.PrestamosDirectos != null && _prestamo.PrestamosDirectos.Any())
+        {
+            sb.AppendLine(@"
+        <div style='margin-top: 30px;'>
+            <h3 style='font-size: 14px; border-bottom: 2px solid #1976d2; padding-bottom: 5px; margin-bottom: 10px;'>Préstamos Directos</h3>
+            <table class='table-amortizacion'>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th style='text-align: left;'>Descripción</th>
+                        <th>Monto</th>
+                        <th>Tasa Mensual</th>
+                        <th>Días Plazo</th>
+                        <th>Fecha Pago</th>
+                        <th>Intereses</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>");
+
+            int pdIdx = 1;
+            foreach (var pd in _prestamo.PrestamosDirectos)
+            {
+                var rowStyle = pdIdx % 2 == 0 ? " style='background-color: #f9f9f9;'" : "";
+                sb.AppendLine($@"
+                    <tr{rowStyle}>
+                        <td style='text-align: center;'>{pdIdx}</td>
+                        <td>{pd.Descripcion}</td>
+                        <td style='text-align: right;'>{pd.MontoSolicitado:N2}</td>
+                        <td style='text-align: right;'>{pd.TasaMensual:N4}%</td>
+                        <td style='text-align: center;'>{pd.DiazPlazo}</td>
+                        <td style='text-align: center;'>{pd.FechaPago:dd/MM/yyyy}</td>
+                        <td style='text-align: right;'>{pd.MontoIntereses:N2}</td>
+                        <td style='text-align: right; font-weight: bold;'>{pd.TotalCapitalInteres:N2}</td>
+                    </tr>");
+                pdIdx++;
+            }
+
+            var totalMontoPD = _prestamo.PrestamosDirectos.Sum(x => x.MontoSolicitado);
+            var totalInteresPD = _prestamo.PrestamosDirectos.Sum(x => x.MontoIntereses);
+            var totalPD = _prestamo.PrestamosDirectos.Sum(x => x.TotalCapitalInteres);
+
+            sb.AppendLine($@"
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan='2' style='text-align: right; padding: 6px;'>TOTALES:</td>
+                        <td style='text-align: right; padding: 6px;'>{totalMontoPD:C2}</td>
+                        <td colspan='3'></td>
+                        <td style='text-align: right; padding: 6px;'>{totalInteresPD:C2}</td>
+                        <td style='text-align: right; padding: 6px; color: #d32f2f;'>{totalPD:C2}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>");
+        }
+
+        // Footer
+        sb.AppendLine($@"
+        <div class='footer'>
+            <p style='margin: 0;'>Documento generado el {DateTime.Now:dd/MM/yyyy HH:mm}</p>
+            <p style='margin: 0;'>Sistema de Gestión de Préstamos UcayNet</p>
+        </div>
+    </div>
+</body>
+</html>");
+
+        return sb.ToString();
+    }
+}
+

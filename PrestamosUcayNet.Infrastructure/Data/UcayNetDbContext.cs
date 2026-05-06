@@ -30,6 +30,8 @@ public partial class UcayNetDbContext : IdentityDbContext<UsuarioSistema>
 
     public virtual DbSet<Prestamo> Prestamos { get; set; }
 
+    public virtual DbSet<PrestamoDirecto> PrestamosDirectos { get; set; }
+
     public virtual DbSet<PrestamosAmortizacione> PrestamosAmortizaciones { get; set; }
 
     public virtual DbSet<Puesto> Puestos { get; set; }
@@ -211,16 +213,19 @@ public partial class UcayNetDbContext : IdentityDbContext<UsuarioSistema>
 
         modelBuilder.Entity<ParametrosGenerale>(entity =>
         {
-            entity.HasKey(e => e.ParametrosGeneralesId);
+            entity.HasKey(e => e.Anio);
 
             entity.ToTable("ParametrosGenerales", "Prestamos");
 
-            entity.Property(e => e.ParametrosGeneralesId)
+            entity.Property(e => e.Anio)
                 .ValueGeneratedNever()
-                .HasComment("Identificador de Parametros")
-                .HasColumnName("ParametrosGeneralesID");
+                .HasComment("Año fiscal al que corresponden los parámetros")
+                .HasColumnName("Anio");
             entity.Property(e => e.CierreCajaAnual)
                 .HasComment("Fecha de Cierre para la Caja de Ahorro")
+                .HasColumnType("smalldatetime");
+            entity.Property(e => e.FechaUtilidades)
+                .HasComment("Fecha de Entrega de Utilidades")
                 .HasColumnType("smalldatetime");
             entity.Property(e => e.InicioPeriodoCatorcenal)
                 .HasComment("Fecha Inicial del primer periodo catorcenal del Año para el sistema de Nómina")
@@ -231,9 +236,15 @@ public partial class UcayNetDbContext : IdentityDbContext<UsuarioSistema>
             entity.Property(e => e.TasaFijaCaja)
                 .HasComment("Tasa Fija de Préstamos de la Caja de Ahorro")
                 .HasColumnType("decimal(8, 2)");
+            entity.Property(e => e.TasaFijaDirecto)
+                .HasComment("Tasa Fija de Préstamos Directos")
+                .HasColumnType("decimal(8, 2)");
             entity.Property(e => e.TasaFijaEmpresa)
                 .HasComment("Tasa Fija para Préstamos de Empresa")
                 .HasColumnType("decimal(8, 2)");
+            entity.Property(e => e.FechaAguinaldo)
+                .HasComment("Fecha de Entrega de Aguinaldo")
+                .HasColumnType("smalldatetime");
         });
 
         modelBuilder.Entity<Prestamo>(entity =>
@@ -298,6 +309,11 @@ public partial class UcayNetDbContext : IdentityDbContext<UsuarioSistema>
                 .HasComment("ID del Tipo de Préstamo")
                 .HasColumnName("TipoPrestamoID");
 
+            entity.Property(e => e.TotalSolicitud)
+                .HasComment("Monto total de la solicitud (Préstamo de nómina + Préstamos Directos)")
+                .HasColumnType("money")
+                .HasDefaultValue(0m);
+
             entity.HasOne(d => d.Empleado).WithMany(p => p.Prestamos)
                 .HasForeignKey(d => d.EmpleadoId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
@@ -317,6 +333,53 @@ public partial class UcayNetDbContext : IdentityDbContext<UsuarioSistema>
                 .HasForeignKey(d => d.TipoPrestamoId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_Prestamos_TipoPrestamo");
+        });
+
+        modelBuilder.Entity<PrestamoDirecto>(entity =>
+        {
+            entity.HasKey(e => e.NumPrestamoDirecto);
+
+            entity.ToTable("PrestamosDirectos", "Prestamos");
+
+            entity.Property(e => e.NumPrestamoDirecto)
+                .HasComment("Identificador del Préstamo Directo");
+
+            entity.Property(e => e.PrestamoId)
+                .HasComment("ID del Préstamo principal");
+
+            entity.Property(e => e.Descripcion)
+                .HasMaxLength(250)
+                .IsUnicode(false)
+                .HasComment("Descripción o concepto del Préstamo Directo");
+
+            entity.Property(e => e.MontoSolicitado)
+                .HasColumnType("money")
+                .HasComment("Monto solicitado del Préstamo Directo");
+
+            entity.Property(e => e.TasaMensual)
+                .HasColumnType("decimal(8, 4)")
+                .HasComment("Tasa de interés mensual aplicable");
+
+            entity.Property(e => e.FechaPago)
+                .HasColumnType("smalldatetime")
+                .HasComment("Fecha de pago único (vencimiento)");
+
+            entity.Property(e => e.DiazPlazo)
+                .HasComment("Días de plazo desde la solicitud hasta el vencimiento");
+
+            entity.Property(e => e.MontoIntereses)
+                .HasColumnType("money")
+                .HasComment("Monto de intereses calculados");
+
+            entity.Property(e => e.TotalCapitalInteres)
+                .HasColumnType("money")
+                .HasComment("Total a pagar (Capital + Intereses)");
+
+            entity.HasOne(d => d.Prestamo)
+                .WithMany(p => p.PrestamosDirectos)
+                .HasForeignKey(d => d.PrestamoId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_PrestamosDirectos_Prestamos");
         });
 
         modelBuilder.Entity<PrestamosAmortizacione>(entity =>

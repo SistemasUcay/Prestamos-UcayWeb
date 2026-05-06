@@ -18,10 +18,10 @@ public class ParametrosController : ControllerBase
         _parametrosService = parametrosService;
     }
 
-    [HttpGet]
-    public async Task<ActionResult<ParametrosDto>> Get()
+    [HttpGet("{anio:int}")]
+    public async Task<ActionResult<ParametrosDto>> Get(int anio)
     {
-        return Ok(await _parametrosService.ObtenerAsync());
+        return Ok(await _parametrosService.ObtenerPorAnioAsync(anio));
     }
 
     [HttpPost]
