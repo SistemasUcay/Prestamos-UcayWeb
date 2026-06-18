@@ -138,4 +138,23 @@ public class PrestamosApiService
         var response = await _http.PostAsJsonAsync($"api/prestamos/{prestamoId}/cancelar-solicitud", request);
         return response.IsSuccessStatusCode;
     }
+
+    /// <summary>
+    /// Devuelve una solicitud pendiente de entrega al estado en evaluación
+    /// </summary>
+    public async Task<bool> DevolverAEvaluacionAsync(int prestamoId)
+    {
+        var response = await _http.PostAsync($"api/prestamos/{prestamoId}/devolver-evaluacion", null);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>
+    /// Actualiza una solicitud existente (estado En Evaluación) reemplazando todos sus datos.
+    /// Nunca crea un registro nuevo.
+    /// </summary>
+    public async Task<bool> ActualizarSolicitudAsync(int prestamoId, PrestamoCreateDto dto)
+    {
+        var response = await _http.PutAsJsonAsync($"api/prestamos/{prestamoId}/solicitud", dto);
+        return response.IsSuccessStatusCode;
+    }
 }

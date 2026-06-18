@@ -30,6 +30,9 @@ builder.Services.AddScoped<EmpresasApiService>();
 builder.Services.AddScoped<EmpleadosApiService>();
 builder.Services.AddScoped<CatalogosApiService>();
 builder.Services.AddScoped<ParametrosApiService>();
+builder.Services.AddScoped<DashboardApiService>();
+builder.Services.AddScoped<CobrosApiService>();
+
 
 // Formato numérico y de fechas de México
 var culturaMx = new CultureInfo("es-MX");

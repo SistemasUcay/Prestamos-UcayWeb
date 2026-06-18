@@ -13,16 +13,17 @@
 
 <MudText Typo="Typo.h4" Class="mb-1">
     <MudIcon Icon="@Icons.Material.Filled.Payments" Class="mr-2" Style="vertical-align: middle;" />
-    Administración de Cartera de Préstamos
+    Gestión de Préstamos Autorizados
 </MudText>
 <MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mb-4">
     Gestión completa de préstamos, activación, pagos y seguimiento
 </MudText>
 
-<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6" @bind-ActivePanelIndex="_activeTab">
+<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" @bind-ActivePanelIndex="_activeTab">
 
     @* ── TAB 1: Pendientes de Entrega (Préstamos en Evaluación) ── *@
     <MudTabPanel Text="Pendientes de Entrega" Icon="@Icons.Material.Filled.PendingActions" BadgeData="@_enEvaluacion.Count" BadgeColor="Color.Warning">
+        <div class="pa-6">
         @if (_loadingEvaluacion)
         {
             <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
@@ -35,13 +36,16 @@
         {
             <MudDataGrid T="PrestamoListDto" Items="@_enEvaluacion" Hover="true" Bordered="true" Striped="true" Dense="true">
                 <Columns>
-                    <PropertyColumn Property="x => x.FechaSolicitud" Title="Fecha Solicitud" Format="dd/MM/yyyy" />
-                    <PropertyColumn Property="x => x.NombreEmpleado" Title="Empleado" />
-                    <PropertyColumn Property="x => x.NombreFondeadora" Title="Fondeadora" />
-                    <PropertyColumn Property="x => x.MontoAprobado" Title="Monto a Entregar" Format="C2" />
-                    <PropertyColumn Property="x => x.PlazoMeses" Title="Plazo (meses)" />
-                    <TemplateColumn Title="Acciones" CellStyle="width: 160px;">
+                    <TemplateColumn Title="Acciones" CellStyle="width: 220px;">
                         <CellTemplate>
+                            <MudTooltip Text="Ver datos de la solicitud">
+                                <MudIconButton Icon="@Icons.Material.Filled.Description" Color="Color.Primary" Size="Size.Small"
+                                               OnClick="@(() => VerSolicitudEnModal(context.Item.PrestamoId))" />
+                            </MudTooltip>
+                            <MudTooltip Text="Devolver a evaluación">
+                                <MudIconButton Icon="@Icons.Material.Filled.Undo" Color="Color.Warning" Size="Size.Small"
+                                               OnClick="@(() => DevolverAEvaluacion(context.Item))" />
+                            </MudTooltip>
                             <MudButton Size="@Size.Small" Variant="@Variant.Filled" Color="@Color.Success"
                                        StartIcon="@Icons.Material.Filled.CheckCircle"
                                        OnClick="@(() => AbrirActivacion(context.Item))">
@@ -49,13 +53,24 @@
                             </MudButton>
                         </CellTemplate>
                     </TemplateColumn>
+                    <PropertyColumn Property="x => x.PrestamoId" Title="ID Préstamo" />
+                    <PropertyColumn Property="x => x.FechaSolicitud" Title="Fecha Solicitud" Format="dd/MM/yyyy" />
+                    <PropertyColumn Property="x => x.FechaDeposito" Title="Fecha Entrega" Format="dd/MM/yyyy" />
+                    <PropertyColumn Property="x => x.NombreEmpleado" Title="Empleado" />
+                    <PropertyColumn Property="x => x.NombreFondeadora" Title="Fondeadora" />
+                    <PropertyColumn Property="x => x.MontoAprobado" Title="Monto a Entregar" Format="C2" />
+                    <PropertyColumn Property="x => x.TotalPrestamosDirectos" Title="Total Directos" Format="C2" />
+                    <PropertyColumn Property="x => x.TotalGeneral" Title="Total General" Format="C2" />
+                    <PropertyColumn Property="x => x.PlazoMeses" Title="Plazo (meses)" />
                 </Columns>
             </MudDataGrid>
         }
+        </div>
     </MudTabPanel>
 
     @* ── TAB 2: Todos los Préstamos ── *@
     <MudTabPanel Text="Préstamos" Icon="@Icons.Material.Filled.AccountBalance" BadgeData="@_prestamos.Count" BadgeColor="Color.Primary">
+        <div class="pa-6">
         <MudPaper Elevation="0" Class="pa-4 mb-4" Style="border-radius: 12px; background: var(--mud-palette-surface);">
             <MudGrid Spacing="2" Justify="Justify.SpaceBetween" Class="align-center">
                 <MudItem xs="12" md="6">
@@ -83,11 +98,34 @@
                          Striped="true" Dense="true" QuickFilter="@_quickFilter"
                          RowsPerPage="15" Style="border-radius: 8px;">
                 <Columns>
+                    <TemplateColumn Title="Acciones" CellStyle="width: 160px;">
+                        <CellTemplate>
+                            <MudTooltip Text="Ver detalle">
+                                <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
+                                               OnClick="@(() => VerDetalle(context.Item.PrestamoId))" />
+                            </MudTooltip>
+                            <MudTooltip Text="Editar">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                               OnClick="@(() => AbrirEdicion(context.Item))" />
+                            </MudTooltip>
+                            @if (context.Item.Estado == "A")
+                            {
+                                <MudTooltip Text="Cancelar préstamo">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small"
+                                                   OnClick="@(() => ConfirmarCancelacion(context.Item))" />
+                                </MudTooltip>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <PropertyColumn Property="x => x.PrestamoId" Title="ID Préstamo" />
+                    <PropertyColumn Property="x => x.FechaDeposito" Title="Fecha Entrega" Format="dd/MM/yyyy" />
                     <PropertyColumn Property="x => x.Folio" Title="Folio" />
                     <PropertyColumn Property="x => x.NombreEmpleado" Title="Empleado" />
                     <PropertyColumn Property="x => x.NombreFondeadora" Title="Fondeadora" />
                     <PropertyColumn Property="x => x.TipoPrestamoDescripcion" Title="Tipo" />
                     <PropertyColumn Property="x => x.MontoAprobado" Title="Monto" Format="C2" />
+                    <PropertyColumn Property="x => x.TotalPrestamosDirectos" Title="Total Directos" Format="C2" />
+                    <PropertyColumn Property="x => x.TotalGeneral" Title="Total General" Format="C2" />
                     <PropertyColumn Property="x => x.PlazoMeses" Title="Plazo" />
                     <PropertyColumn Property="x => x.ImporteCuotas" Title="Cuota" Format="C2" />
                     <PropertyColumn Property="x => x.SaldoPendiente" Title="Saldo" Format="C2" />
@@ -99,25 +137,13 @@
                         </CellTemplate>
                     </TemplateColumn>
                     <PropertyColumn Property="x => x.FechaAprobado" Title="F. Aprobado" Format="dd/MM/yyyy" />
-                    <TemplateColumn Title="Acciones" CellStyle="width: 160px;">
-                        <CellTemplate>
-                            <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
-                                           OnClick="@(() => VerDetalle(context.Item.PrestamoId))" Title="Ver detalle" />
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                           OnClick="@(() => AbrirEdicion(context.Item))" Title="Editar" />
-                            @if (context.Item.Estado == "A")
-                            {
-                                <MudIconButton Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small"
-                                               OnClick="@(() => ConfirmarCancelacion(context.Item))" Title="Cancelar préstamo" />
-                            }
-                        </CellTemplate>
-                    </TemplateColumn>
                 </Columns>
                 <PagerContent>
                     <MudDataGridPager T="PrestamoListDto" />
                 </PagerContent>
             </MudDataGrid>
         }
+        </div>
     </MudTabPanel>
 </MudTabs>
 
@@ -132,15 +158,36 @@
     <DialogContent>
         @if (_selectedPrestamo is not null)
         {
-            <MudAlert Severity="Severity.Info" Class="mb-4">
-                <b>@_selectedPrestamo.NombreEmpleado</b> — Monto: <b>@_selectedPrestamo.MontoAprobado.ToString("C2")</b> — Plazo: <b>@_selectedPrestamo.PlazoMeses meses</b>
+            <MudAlert Severity="Severity.Info" Class="mb-3">
+                <b>@_selectedPrestamo.NombreEmpleado</b> — Plazo: <b>@_selectedPrestamo.PlazoMeses meses</b>
             </MudAlert>
+
+            <MudGrid Spacing="2" Class="mb-2">
+                <MudItem xs="12" md="4">
+                    <MudPaper Elevation="0" Class="pa-2" Style="background: var(--mud-palette-background-grey); border-radius: 6px;">
+                        <MudText Typo="Typo.caption">Préstamo Nómina</MudText>
+                        <MudText Typo="Typo.h6">@_selectedPrestamo.MontoAprobado.ToString("C2")</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudPaper Elevation="0" Class="pa-2" Style="background: var(--mud-palette-background-grey); border-radius: 6px;">
+                        <MudText Typo="Typo.caption">Préstamos Directos</MudText>
+                        <MudText Typo="Typo.h6">@_selectedPrestamo.TotalPrestamosDirectos.ToString("C2")</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudPaper Elevation="0" Class="pa-2" Style="background: var(--mud-palette-primary); color: white; border-radius: 6px;">
+                        <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.8);">Total General</MudText>
+                        <MudText Typo="Typo.h6" Style="color: white;">@_selectedPrestamo.TotalGeneral.ToString("C2")</MudText>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
         }
         <MudForm @ref="_formActivacion">
             <MudGrid Spacing="2">
                 <MudItem xs="12" md="6">
-                    <MudDatePicker Label="Fecha de Entrega" @bind-Date="_fechaEntrega" Required="true"
-                                   Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    <MudDatePicker Label="Fecha de Entrega" Date="_fechaEntrega" ReadOnly="true" Disabled="true"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Fecha informativa capturada en la solicitud" />
                 </MudItem>
                 <MudItem xs="12" md="6">
                     <MudSelect T="string" Label="Método de Entrega" @bind-Value="_metodoEntrega" Required="true"
@@ -176,6 +223,97 @@
                 <MudText>Confirmar Entrega</MudText>
             }
         </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog @bind-Visible="_solicitudVisible" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Description" Class="mr-2" Style="vertical-align: middle;" Color="Color.Primary" />
+            Datos de la Solicitud #@_solicitudDetalle?.Id
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_loadingSolicitud)
+        {
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+        }
+        else if (_solicitudDetalle is null)
+        {
+            <MudAlert Severity="Severity.Warning">No se pudo cargar la solicitud.</MudAlert>
+        }
+        else
+        {
+            <MudGrid Spacing="2">
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.caption">Empleado</MudText>
+                    <MudText Typo="Typo.body1">@_solicitudDetalle.NombreEmpleado</MudText>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.caption">Fondeadora</MudText>
+                    <MudText Typo="Typo.body1">@_solicitudDetalle.NombreFondeadora</MudText>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.caption">Fecha Solicitud</MudText>
+                    <MudText Typo="Typo.body1">@_solicitudDetalle.FechaSolicitud.ToString("dd/MM/yyyy")</MudText>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.caption">Fecha Entrega</MudText>
+                    <MudText Typo="Typo.body1">@(_solicitudDetalle.FechaDeposito?.ToString("dd/MM/yyyy") ?? "—")</MudText>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.caption">Monto Aprobado</MudText>
+                    <MudText Typo="Typo.body1">@_solicitudDetalle.MontoAprobado.ToString("C2")</MudText>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.caption">Plazo</MudText>
+                    <MudText Typo="Typo.body1">@_solicitudDetalle.PlazoMeses meses</MudText>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.caption">Estado</MudText>
+                    <MudText Typo="Typo.body1">@_solicitudDetalle.EstadoDescripcion</MudText>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.caption">Tipo de Préstamo</MudText>
+                    <MudText Typo="Typo.body1">@_solicitudDetalle.TipoPrestamoDescripcion</MudText>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.caption">Frecuencia de Pago</MudText>
+                    <MudText Typo="Typo.body1">@_solicitudDetalle.TipoPagoDescripcion</MudText>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudText Typo="Typo.caption">Observaciones / Motivo</MudText>
+                    <MudText Typo="Typo.body1">@_solicitudDetalle.DestinoCredito</MudText>
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudDivider Class="my-2" />
+                    <MudText Typo="Typo.subtitle2" Color="Color.Primary">Resumen de montos</MudText>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudPaper Elevation="0" Class="pa-2" Style="background: var(--mud-palette-background-grey); border-radius: 6px;">
+                        <MudText Typo="Typo.caption">Préstamo Nómina</MudText>
+                        <MudText Typo="Typo.h6">@_solicitudDetalle.MontoAprobado.ToString("C2")</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudPaper Elevation="0" Class="pa-2" Style="background: var(--mud-palette-background-grey); border-radius: 6px;">
+                        <MudText Typo="Typo.caption">Préstamos Directos</MudText>
+                        <MudText Typo="Typo.h6">@(_solicitudDetalle.PrestamosDirectos.Sum(pd => pd.MontoSolicitado).ToString("C2"))</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudPaper Elevation="0" Class="pa-2" Style="background: var(--mud-palette-primary); color: white; border-radius: 6px;">
+                        <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.8);">Total General</MudText>
+                        <MudText Typo="Typo.h6" Style="color: white;">@_solicitudDetalle.TotalSolicitud.ToString("C2")</MudText>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudSpacer />
+        <MudButton OnClick="@(() => _solicitudVisible = false)" Variant="Variant.Filled" Color="Color.Primary">Cerrar</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -281,6 +419,11 @@
     private int _cancelPrestamoId;
     private string _cancelNombreEmpleado = "";
 
+    // ── Consulta de solicitud ──
+    private bool _solicitudVisible;
+    private bool _loadingSolicitud;
+    private PrestamoDetalleDto? _solicitudDetalle;
+
     private DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true };
 
     protected override async Task OnInitializedAsync()
@@ -293,7 +436,7 @@
         _loadingEvaluacion = true;
         try
         {
-            _enEvaluacion = await PrestamosApi.GetPorEstadoAsync("E");
+            _enEvaluacion = await PrestamosApi.GetPorEstadoAsync("T");
         }
         catch (Exception ex)
         {
@@ -339,7 +482,7 @@
     private void AbrirActivacion(PrestamoListDto item)
     {
         _selectedPrestamo = item;
-        _fechaEntrega = DateTime.Today;
+        _fechaEntrega = item.FechaDeposito;
         _metodoEntrega = "Transferencia";
         _referencia = "";
         _folio = "";
@@ -450,22 +593,66 @@
 
     // ── Navegación ──
 
-    private void VerDetalle(int id)
+    private async Task VerDetalle(int id)
     {
-        Navigation.NavigateTo($"/prestamos/{id}");
+        var parameters = new DialogParameters { ["Id"] = id };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true };
+        await DialogService.ShowAsync<DetallePrestamo>("", parameters, options);
+    }
+
+    private async Task VerSolicitudEnModal(int id)
+    {
+        _solicitudVisible = true;
+        _loadingSolicitud = true;
+        _solicitudDetalle = null;
+
+        try
+        {
+            _solicitudDetalle = await PrestamosApi.GetByIdAsync(id);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar la solicitud: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loadingSolicitud = false;
+        }
+    }
+
+    private async Task DevolverAEvaluacion(PrestamoListDto item)
+    {
+        try
+        {
+            var result = await PrestamosApi.DevolverAEvaluacionAsync(item.PrestamoId);
+            if (result)
+            {
+                Snackbar.Add("La solicitud fue devuelta a evaluación.", Severity.Success);
+                await Task.WhenAll(CargarEnEvaluacion(), CargarPrestamos());
+            }
+            else
+            {
+                Snackbar.Add("No se pudo devolver la solicitud a evaluación.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
     }
 
     // ── Helpers ──
 
     private static Color ObtenerColorEstado(string estado) => estado switch
     {
-        "E" => Color.Warning,      // En Evaluación / Pendiente de Entrega
+        "E" => Color.Warning,      // En Evaluación
+        "T" => Color.Primary,      // Pendiente de Entrega
         "A" => Color.Success,      // Activo
         "L" => Color.Tertiary,     // Liquidado
         "C" => Color.Error,        // Cancelado
         "R" => Color.Dark,         // Rechazado
         "P" => Color.Info,         // Pendiente
         "S" => Color.Secondary,    // Suspendido
-        _ => Color.Default         // Cualquier otro estado
+        _ => Color.Default
     };
 }

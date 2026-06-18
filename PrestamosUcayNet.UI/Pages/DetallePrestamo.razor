@@ -1,4 +1,3 @@
-@page "/prestamos/{Id:int}"
 @using Microsoft.AspNetCore.Authorization
 @using PrestamosUcayNet.Application.DTOs
 @using PrestamosUcayNet.UI.Services
@@ -8,126 +7,175 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
-<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
-    @if (_loading)
-    {
-        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
-    }
-    else if (_prestamo == null)
-    {
-        <MudAlert Severity="Severity.Error">Préstamo no encontrado.</MudAlert>
-    }
-    else
-    {
-        <MudGrid>
-            @* Encabezado y Resumen *@
-            <MudItem xs="12">
-                <MudPaper Class="pa-6 d-flex align-center justify-space-between flex-wrap">
-                    <div>
-                        <MudText Typo="Typo.h5" Class="mb-1">
-                            Préstamo #@Id
-                            @if (!string.IsNullOrEmpty(_prestamo.Folio))
-                            {
-                                <MudChip T="string" Size="Size.Small" Color="Color.Default" Class="ml-2">Folio: @_prestamo.Folio</MudChip>
-                            }
-                            <MudChip T="string" Size="Size.Small" Color="@ObtenerColorEstado(_prestamo.Estado)">@_prestamo.EstadoDescripcion</MudChip>
-                        </MudText>
-                        <MudText Typo="Typo.body2">Empleado: <b>@_prestamo.NombreEmpleado</b></MudText>
-                        <MudText Typo="Typo.body2">Fondeadora: <b>@_prestamo.NombreFondeadora</b> — Tipo: <b>@_prestamo.TipoPrestamoDescripcion</b> — Pago: <b>@_prestamo.TipoPagoDescripcion</b></MudText>
-                    </div>
-                </MudPaper>
-            </MudItem>
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Description" Class="mr-2" Style="vertical-align: middle;" Color="Color.Primary" />
+            Detalle del Préstamo #@Id
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <div class="pa-4">
+            @if (_loading)
+            {
+                <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+            }
+            else if (_prestamo == null)
+            {
+                <MudAlert Severity="Severity.Error">Préstamo no encontrado.</MudAlert>
+            }
+            else
+            {
+                <MudGrid>
+                    @* Encabezado y Resumen *@
+                    <MudItem xs="12">
+                        <MudPaper Class="pa-6 d-flex align-center justify-space-between flex-wrap">
+                            <div>
+                                <MudText Typo="Typo.h5" Class="mb-1">
+                                    Préstamo #@Id
+                                    @if (!string.IsNullOrEmpty(_prestamo.Folio))
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Default" Class="ml-2">Folio: @_prestamo.Folio</MudChip>
+                                    }
+                                    <MudChip T="string" Size="Size.Small" Color="@ObtenerColorEstado(_prestamo.Estado)">@_prestamo.EstadoDescripcion</MudChip>
+                                </MudText>
+                                <MudText Typo="Typo.body2">Empleado: <b>@_prestamo.NombreEmpleado</b></MudText>
+                                <MudText Typo="Typo.body2">Fondeadora: <b>@_prestamo.NombreFondeadora</b> — Tipo: <b>@_prestamo.TipoPrestamoDescripcion</b> — Pago: <b>@_prestamo.TipoPagoDescripcion</b></MudText>
+                            </div>
+                        </MudPaper>
+                    </MudItem>
 
-            @* Tarjetas de Totales *@
-            <MudItem xs="12" sm="3">
-                <MudPaper Class="pa-4 text-center">
-                    <MudText Typo="Typo.subtitle2">Monto Aprobado</MudText>
-                    <MudText Typo="Typo.h5" Color="Color.Primary">@_prestamo.MontoAprobado.ToString("C2")</MudText>
-                </MudPaper>
-            </MudItem>
-            <MudItem xs="12" sm="3">
-                <MudPaper Class="pa-4 text-center">
-                    <MudText Typo="Typo.subtitle2">Total a Pagar</MudText>
-                    <MudText Typo="Typo.h5">@_prestamo.TotalPagar.ToString("C2")</MudText>
-                </MudPaper>
-            </MudItem>
-            <MudItem xs="12" sm="3">
-                <MudPaper Class="pa-4 text-center">
-                    <MudText Typo="Typo.subtitle2">Saldo Pendiente</MudText>
-                    <MudText Typo="Typo.h5" Color="Color.Error">@_prestamo.SaldoPendiente.ToString("C2")</MudText>
-                </MudPaper>
-            </MudItem>
-            <MudItem xs="12" sm="3">
-                <MudPaper Class="pa-4 text-center">
-                    <MudText Typo="Typo.subtitle2">Cuota Mensual</MudText>
-                    <MudText Typo="Typo.h5">@_prestamo.ImporteCuotas.ToString("C2")</MudText>
-                </MudPaper>
-            </MudItem>
+                    @* Tarjetas de Totales *@
+                    <MudItem xs="12" sm="3">
+                        <MudPaper Class="pa-4 text-center">
+                            <MudText Typo="Typo.subtitle2">Monto Aprobado</MudText>
+                            <MudText Typo="Typo.h5" Color="Color.Primary">@_prestamo.MontoAprobado.ToString("C2")</MudText>
+                        </MudPaper>
+                    </MudItem>
+                    <MudItem xs="12" sm="3">
+                        <MudPaper Class="pa-4 text-center">
+                            <MudText Typo="Typo.subtitle2">Total a Pagar</MudText>
+                            <MudText Typo="Typo.h5">@_prestamo.TotalPagar.ToString("C2")</MudText>
+                        </MudPaper>
+                    </MudItem>
+                    <MudItem xs="12" sm="3">
+                        <MudPaper Class="pa-4 text-center">
+                            <MudText Typo="Typo.subtitle2">Saldo Pendiente</MudText>
+                            <MudText Typo="Typo.h5" Color="Color.Error">@_prestamo.SaldoPendiente.ToString("C2")</MudText>
+                        </MudPaper>
+                    </MudItem>
+                    <MudItem xs="12" sm="3">
+                        <MudPaper Class="pa-4 text-center">
+                            <MudText Typo="Typo.subtitle2">Cuota Mensual</MudText>
+                            <MudText Typo="Typo.h5">@_prestamo.ImporteCuotas.ToString("C2")</MudText>
+                        </MudPaper>
+                    </MudItem>
 
-            @* Info adicional *@
-            <MudItem xs="12">
-                <MudPaper Class="pa-4">
-                    <MudGrid Spacing="2">
-                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Tasa Anual</MudText><MudText>@_prestamo.TasaInteresAnual.ToString("N2")%</MudText></MudItem>
-                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Tasa Mensual</MudText><MudText>@_prestamo.TasaInteresMensual.ToString("N2")%</MudText></MudItem>
-                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Plazo</MudText><MudText>@_prestamo.PlazoMeses meses (@_prestamo.NumeroCuotas cuotas)</MudText></MudItem>
-                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Sueldo al Solicitar</MudText><MudText>@_prestamo.SueldoLaboral.ToString("C2")</MudText></MudItem>
-                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Fecha Solicitud</MudText><MudText>@_prestamo.FechaSolicitud.ToString("dd/MM/yyyy")</MudText></MudItem>
-                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Fecha Aprobado</MudText><MudText>@_prestamo.FechaAprobado.ToString("dd/MM/yyyy")</MudText></MudItem>
-                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Inicio Descuento</MudText><MudText>@_prestamo.InicioDescuento.ToString("dd/MM/yyyy")</MudText></MudItem>
-                        <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Fin Descuento</MudText><MudText>@_prestamo.FinalDescuento.ToString("dd/MM/yyyy")</MudText></MudItem>
-                        <MudItem xs="12" md="6"><MudText Typo="Typo.caption">Destino del Crédito</MudText><MudText>@_prestamo.DestinoCredito</MudText></MudItem>
-                        @if (_prestamo.MetodoEntrega is not null)
-                        {
-                            <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Método Entrega</MudText><MudText>@_prestamo.MetodoEntrega</MudText></MudItem>
-                        }
-                        @if (_prestamo.ReferenciaBancaria is not null)
-                        {
-                            <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Referencia</MudText><MudText>@_prestamo.ReferenciaBancaria</MudText></MudItem>
-                        }
-                    </MudGrid>
-                </MudPaper>
-            </MudItem>
+                    @* Info adicional *@
+                    <MudItem xs="12">
+                        <MudPaper Class="pa-4">
+                            <MudGrid Spacing="2">
+                                <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Tasa Anual</MudText><MudText>@_prestamo.TasaInteresAnual.ToString("N2")%</MudText></MudItem>
+                                <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Tasa Mensual</MudText><MudText>@_prestamo.TasaInteresMensual.ToString("N2")%</MudText></MudItem>
+                                <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Plazo</MudText><MudText>@_prestamo.PlazoMeses meses (@_prestamo.NumeroCuotas cuotas)</MudText></MudItem>
+                                <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Sueldo al Solicitar</MudText><MudText>@_prestamo.SueldoLaboral.ToString("C2")</MudText></MudItem>
+                                <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Fecha Solicitud</MudText><MudText>@_prestamo.FechaSolicitud.ToString("dd/MM/yyyy")</MudText></MudItem>
+                                <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Fecha Aprobado</MudText><MudText>@_prestamo.FechaAprobado.ToString("dd/MM/yyyy")</MudText></MudItem>
+                                <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Inicio Descuento</MudText><MudText>@_prestamo.InicioDescuento.ToString("dd/MM/yyyy")</MudText></MudItem>
+                                <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Fin Descuento</MudText><MudText>@_prestamo.FinalDescuento.ToString("dd/MM/yyyy")</MudText></MudItem>
+                                <MudItem xs="12" md="6"><MudText Typo="Typo.caption">Destino del Crédito</MudText><MudText>@_prestamo.DestinoCredito</MudText></MudItem>
+                                @if (_prestamo.MetodoEntrega is not null)
+                                {
+                                    <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Método Entrega</MudText><MudText>@_prestamo.MetodoEntrega</MudText></MudItem>
+                                }
+                                @if (_prestamo.ReferenciaBancaria is not null)
+                                {
+                                    <MudItem xs="6" md="3"><MudText Typo="Typo.caption">Referencia</MudText><MudText>@_prestamo.ReferenciaBancaria</MudText></MudItem>
+                                }
+                            </MudGrid>
+                        </MudPaper>
+                    </MudItem>
 
-            @* Tabla de Amortización *@
-            <MudItem xs="12">
-                <MudText Typo="Typo.h6" Class="mb-4">Tabla de Amortización</MudText>
-                <MudTable Items="@_prestamo.TablaAmortizacion" Dense="true" Hover="true" Bordered="true" Striped="true">
-                    <HeaderContent>
-                        <MudTh>#</MudTh>
-                        <MudTh>Fecha de Pago</MudTh>
-                        <MudTh>P. Programado</MudTh>
-                        <MudTh>Capital</MudTh>
-                        <MudTh>Interés</MudTh>
-                        <MudTh>Saldo Final</MudTh>
-                        <MudTh>Estado</MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd>@context.NumeroPago</MudTd>
-                        <MudTd>@context.FechaPago.ToString("dd/MM/yyyy")</MudTd>
-                        <MudTd>@context.ImportePago.ToString("C2")</MudTd>
-                        <MudTd>@context.ImporteCapital.ToString("C2")</MudTd>
-                        <MudTd>@context.ImporteInteres.ToString("C2")</MudTd>
-                        <MudTd>@context.SaldoFinal.ToString("C2")</MudTd>
-                        <MudTd>
-                            <MudChip T="string" Size="Size.Small" Color="@(context.Pagado ? Color.Success : Color.Default)">
-                                @(context.Pagado ? "Pagado" : "Pendiente")
-                            </MudChip>
-                        </MudTd>
-                    </RowTemplate>
-                </MudTable>
-            </MudItem>
-        </MudGrid>
-    }
-</MudContainer>
+                    @* Préstamos Directos *@
+                    @if (_prestamo.PrestamosDirectos != null && _prestamo.PrestamosDirectos.Any())
+                    {
+                        <MudItem xs="12">
+                            <MudText Typo="Typo.h6" Class="mb-4">Préstamos Directos</MudText>
+                            <MudTable Items="@_prestamo.PrestamosDirectos" Dense="true" Hover="true" Bordered="true" Striped="true">
+                                <HeaderContent>
+                                    <MudTh>#</MudTh>
+                                    <MudTh>Descripción</MudTh>
+                                    <MudTh>Monto</MudTh>
+                                    <MudTh>Tasa Mensual</MudTh>
+                                    <MudTh>Fecha Pago</MudTh>
+                                    <MudTh>Días Plazo</MudTh>
+                                    <MudTh>Intereses</MudTh>
+                                    <MudTh>Total</MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd>@context.NumPrestamoDirecto</MudTd>
+                                    <MudTd>@context.Descripcion</MudTd>
+                                    <MudTd>@context.MontoSolicitado.ToString("C2")</MudTd>
+                                    <MudTd>@context.TasaMensual.ToString("N2")%</MudTd>
+                                    <MudTd>@context.FechaPago.ToString("dd/MM/yyyy")</MudTd>
+                                    <MudTd>@context.DiazPlazo</MudTd>
+                                    <MudTd>@context.MontoIntereses.ToString("C2")</MudTd>
+                                    <MudTd>@context.TotalCapitalInteres.ToString("C2")</MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        </MudItem>
+                    }
+
+                    @* Tabla de Amortización *@
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-4">Tabla de Amortización</MudText>
+                        <MudTable Items="@_prestamo.TablaAmortizacion" Dense="true" Hover="true" Bordered="true" Striped="true">
+                            <HeaderContent>
+                                <MudTh>#</MudTh>
+                                <MudTh>Fecha de Pago</MudTh>
+                                <MudTh>P. Programado</MudTh>
+                                <MudTh>Capital</MudTh>
+                                <MudTh>Interés</MudTh>
+                                <MudTh>Pago Realizado</MudTh>
+                                <MudTh>Pago Extra a Capital</MudTh>
+                                <MudTh>Saldo Final</MudTh>
+                                <MudTh>Estado</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>@context.NumeroPago</MudTd>
+                                <MudTd>@context.FechaPago.ToString("dd/MM/yyyy")</MudTd>
+                                <MudTd>@context.ImportePago.ToString("C2")</MudTd>
+                                <MudTd>@context.ImporteCapital.ToString("C2")</MudTd>
+                                <MudTd>@context.ImporteInteres.ToString("C2")</MudTd>
+                                <MudTd>@(context.Pagado ? (context.ImportePago + context.PagoExtra).ToString("C2") : "$0.00")</MudTd>
+                                <MudTd>@context.PagoExtra.ToString("C2")</MudTd>
+                                <MudTd>@context.SaldoFinal.ToString("C2")</MudTd>
+                                <MudTd>
+                                    <MudChip T="string" Size="Size.Small" Color="@(context.Pagado ? Color.Success : Color.Default)">
+                                        @(context.Pagado ? "Pagado" : "Pendiente")
+                                    </MudChip>
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    </MudItem>
+                </MudGrid>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudSpacer />
+        <MudButton OnClick="Cerrar" Variant="Variant.Filled" Color="Color.Primary">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
 
 @code {
+    [CascadingParameter] MudDialog MudDialog { get; set; } = null!;
     [Parameter] public int Id { get; set; }
     
     private PrestamoDetalleDto? _prestamo;
     private bool _loading = true;
 
-    protected override async Task OnParametersSetAsync()
+    protected override async Task OnInitializedAsync()
     {
         await CargarDetalle();
     }
@@ -149,12 +197,20 @@
         }
     }
 
+    private async Task Cerrar()
+    {
+        await MudDialog.CloseAsync(DialogResult.Ok(true));
+    }
+
     private static Color ObtenerColorEstado(string estado) => estado switch
     {
+        "E" => Color.Warning,
+        "T" => Color.Primary,
         "A" => Color.Success,
         "P" => Color.Info,
         "L" => Color.Tertiary,
         "C" => Color.Error,
+        "R" => Color.Dark,
         "S" => Color.Warning,
         _ => Color.Default
     };

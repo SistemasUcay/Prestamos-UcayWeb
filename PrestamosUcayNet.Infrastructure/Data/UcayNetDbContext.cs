@@ -34,6 +34,10 @@ public partial class UcayNetDbContext : IdentityDbContext<UsuarioSistema>
 
     public virtual DbSet<PrestamosAmortizacione> PrestamosAmortizaciones { get; set; }
 
+    public virtual DbSet<PrestamoCobro> PrestamoCobros { get; set; }
+
+    public virtual DbSet<PrestamoDetallePago> PrestamoDetallePagos { get; set; }
+
     public virtual DbSet<Puesto> Puestos { get; set; }
 
     public virtual DbSet<TipoPrestamo> TipoPrestamos { get; set; }
@@ -375,6 +379,14 @@ public partial class UcayNetDbContext : IdentityDbContext<UsuarioSistema>
                 .HasColumnType("money")
                 .HasComment("Total a pagar (Capital + Intereses)");
 
+            entity.Property(e => e.StatusPago)
+                .HasComment("Indica si el préstamo directo ya fue pagado")
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.FechaPagoReal)
+                .HasColumnType("smalldatetime")
+                .HasComment("Fecha en que se registró el cobro del préstamo directo");
+
             entity.HasOne(d => d.Prestamo)
                 .WithMany(p => p.PrestamosDirectos)
                 .HasForeignKey(d => d.PrestamoId)
@@ -431,6 +443,91 @@ public partial class UcayNetDbContext : IdentityDbContext<UsuarioSistema>
                 .HasForeignKey(d => d.PrestamoId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_PrestamosAmortizaciones_Prestamos");
+        });
+
+        modelBuilder.Entity<PrestamoCobro>(entity =>
+        {
+            entity.ToTable("PrestamoCobros", "Prestamos");
+
+            entity.HasKey(e => e.CobroId);
+
+            entity.Property(e => e.PrestamoId)
+                .HasColumnName("PrestamoID");
+
+            entity.Property(e => e.MontoTotal)
+                .HasColumnType("money");
+
+            entity.Property(e => e.MetodoPago)
+                .HasMaxLength(50);
+
+            entity.Property(e => e.Referencia)
+                .HasMaxLength(100);
+
+            entity.Property(e => e.UsuarioId)
+                .HasMaxLength(450);
+
+            entity.Property(e => e.OrigenNomina)
+                .HasMaxLength(200);
+
+            entity.HasOne(d => d.Prestamo)
+                .WithMany()
+                .HasForeignKey(d => d.PrestamoId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_PrestamoCobros_Prestamos");
+        });
+
+        modelBuilder.Entity<PrestamoDetallePago>(entity =>
+        {
+            entity.ToTable("PrestamoDetallePagos", "Prestamos");
+
+            entity.HasKey(e => e.DetallePagoId);
+
+            entity.Property(e => e.PrestamoId)
+                .HasColumnName("PrestamoID");
+
+            entity.Property(e => e.MontoCapital)
+                .HasColumnType("money");
+
+            entity.Property(e => e.MontoInteres)
+                .HasColumnType("money");
+
+            entity.Property(e => e.PagoExtraCapital)
+                .HasColumnType("money");
+
+            entity.Property(e => e.MontoTotal)
+                .HasColumnType("money");
+
+            entity.Property(e => e.AmortizacionId)
+                .IsRequired(false)
+                .HasColumnName("AmortizacionID");
+
+            entity.Property(e => e.PrestamoDirectoId)
+                .IsRequired(false)
+                .HasColumnName("PrestamoDirectoID");
+
+            entity.HasOne(d => d.Cobro)
+                .WithMany(p => p.PrestamoDetallePagos)
+                .HasForeignKey(d => d.CobroId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_PrestamoDetallePagos_PrestamoCobros");
+
+            entity.HasOne(d => d.Prestamo)
+                .WithMany()
+                .HasForeignKey(d => d.PrestamoId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_PrestamoDetallePagos_Prestamos");
+
+            entity.HasOne(d => d.Amortizacion)
+                .WithMany()
+                .HasForeignKey(d => d.AmortizacionId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_PrestamoDetallePagos_PrestamosAmortizaciones");
+
+            entity.HasOne(d => d.PrestamoDirecto)
+                .WithMany()
+                .HasForeignKey(d => d.PrestamoDirectoId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_PrestamoDetallePagos_PrestamosDirectos");
         });
 
         modelBuilder.Entity<Puesto>(entity =>

@@ -54,6 +54,16 @@ public partial class PrestamoDirecto
     public decimal TotalCapitalInteres { get; set; }
 
     /// <summary>
+    /// Indica si el préstamo directo ya fue pagado
+    /// </summary>
+    public bool StatusPago { get; set; }
+
+    /// <summary>
+    /// Fecha en que se registró el cobro del préstamo directo
+    /// </summary>
+    public DateTime? FechaPagoReal { get; set; }
+
+    /// <summary>
     /// Navegación al préstamo principal
     /// </summary>
     public virtual Prestamo Prestamo { get; set; } = null!;

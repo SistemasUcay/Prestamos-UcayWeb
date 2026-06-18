@@ -70,14 +70,20 @@
             </TemplateColumn>
             <TemplateColumn Title="Acciones" CellStyle="width: 200px;">
                 <CellTemplate>
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                        OnClick="@(() => OpenEditarDialog(context.Item))" Title="Editar" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Lock" Color="Color.Warning" Size="Size.Small"
-                        OnClick="@(() => OpenCambiarPasswordDialog(context.Item))" Title="Cambiar Contraseña" />
+                    <MudTooltip Text="Editar">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                            OnClick="@(() => OpenEditarDialog(context.Item))" />
+                    </MudTooltip>
+                    <MudTooltip Text="Cambiar Contraseña">
+                        <MudIconButton Icon="@Icons.Material.Filled.Lock" Color="Color.Warning" Size="Size.Small"
+                            OnClick="@(() => OpenCambiarPasswordDialog(context.Item))" />
+                    </MudTooltip>
                     @if (context.Item.Activo)
                     {
-                        <MudIconButton Icon="@Icons.Material.Filled.PersonOff" Color="Color.Error" Size="Size.Small"
-                            OnClick="@(() => DesactivarUsuario(context.Item))" Title="Desactivar" />
+                        <MudTooltip Text="Desactivar">
+                            <MudIconButton Icon="@Icons.Material.Filled.PersonOff" Color="Color.Error" Size="Size.Small"
+                                OnClick="@(() => DesactivarUsuario(context.Item))" />
+                        </MudTooltip>
                     }
                 </CellTemplate>
             </TemplateColumn>

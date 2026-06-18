@@ -3,5 +3,6 @@
   <Project Path="PrestamosUcayNet.Application/PrestamosUcayNet.Application.csproj" />
   <Project Path="PrestamosUcayNet.Domain/PrestamosUcayNet.Domain.csproj" />
   <Project Path="PrestamosUcayNet.Infrastructure/PrestamosUcayNet.Infrastructure.csproj" />
+  <Project Path="PrestamosUcayNet.Tests/PrestamosUcayNet.Tests.csproj" />
   <Project Path="PrestamosUcayNet.UI/PrestamosUcayNet.UI.csproj" />
 </Solution>

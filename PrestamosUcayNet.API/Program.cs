@@ -87,6 +87,9 @@ builder.Services.AddScoped<IEmpleadosService, EmpleadosService>();
 builder.Services.AddScoped<ICatalogosService, CatalogosService>();
 builder.Services.AddScoped<IParametrosService, ParametrosService>();
 builder.Services.AddScoped<IPrestamosService, InfraServices.PrestamosService>();
+builder.Services.AddScoped<ICobrosService, InfraServices.CobrosService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
+
 
 // ── Controllers y CORS ──
 builder.Services.AddControllers();
@@ -112,7 +115,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection(); // Comentado para desarrollo local (evitar problemas de certificados/CORS en HTTP)
 app.UseCors("AllowBlazorUI");
 
 app.UseAuthentication();

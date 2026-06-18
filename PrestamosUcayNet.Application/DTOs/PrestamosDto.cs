@@ -22,9 +22,17 @@ public class PrestamoListDto
     public string? Folio { get; set; }
     public string NombreEmpleado { get; set; } = null!;
     public string NombreFondeadora { get; set; } = null!;
+    public string NombreCortoFondeadora { get; set; } = null!;
     public string TipoPrestamoDescripcion { get; set; } = null!;
     public string TipoPagoDescripcion { get; set; } = null!;
     public decimal MontoAprobado { get; set; }
+    public decimal TotalPrestamosDirectos { get; set; }
+
+    /// <summary>
+    /// Total general: préstamo de nómina + préstamos directos
+    /// </summary>
+    public decimal TotalGeneral => MontoAprobado + TotalPrestamosDirectos;
+
     public decimal SaldoPendiente { get; set; }
     public int PlazoMeses { get; set; }
     public int NumeroCuotas { get; set; }
@@ -34,23 +42,28 @@ public class PrestamoListDto
     public DateTime FechaSolicitud { get; set; }
     public DateTime FechaAprobado { get; set; }
     public DateTime? FechaDeposito { get; set; }
+    public DateTime? FinalDescuento { get; set; }
+    public List<PrestamoDirectoDto> PrestamosDirectos { get; set; } = new();
 
     /// <summary>
     /// Etiqueta legible del estado del préstamo
     /// </summary>
     public string EstadoDescripcion => Estado switch
     {
+        "E" => "En Evaluación",
+        "T" => "Pendiente de Entrega",
         "A" => "Activo",
         "P" => "Pagado",
         "L" => "Liquidado",
         "C" => "Cancelado",
+        "R" => "Rechazado",
         "S" => "Suspendido",
         _ => Estado
     };
 }
 
 /// <summary>
-/// DTO completo con detalle del préstamo y tabla de amortización
+/// DTO completo con detalle del préstamo
 /// </summary>
 public class PrestamoDetalleDto
 {
@@ -89,10 +102,13 @@ public class PrestamoDetalleDto
 
     public string EstadoDescripcion => Estado switch
     {
+        "E" => "En Evaluación",
+        "T" => "Pendiente de Entrega",
         "A" => "Activo",
         "P" => "Pagado",
         "L" => "Liquidado",
         "C" => "Cancelado",
+        "R" => "Rechazado",
         "S" => "Suspendido",
         _ => Estado
     };
@@ -157,6 +173,10 @@ public class PrestamoDirectoDto
     public int DiazPlazo { get; set; }
     public decimal MontoIntereses { get; set; }
     public decimal TotalCapitalInteres { get; set; }
+    public bool StatusPago { get; set; }
+    public DateTime? FechaPagoReal { get; set; }
+
+    public string EstadoPagoDescripcion => StatusPago ? "Pagado" : "Pendiente";
 }
 
 /// <summary>
@@ -207,7 +227,7 @@ public class PrestamoCreateDto
     public int? CondicionCreditoId { get; set; }
 
     [Required]
-    [Range(0.01, double.MaxValue, ErrorMessage = "El monto debe ser mayor a cero.")]
+    [Range(0, double.MaxValue, ErrorMessage = "El monto no puede ser negativo.")]
     public decimal MontoAprobado { get; set; }
 
     [Required]
@@ -215,7 +235,7 @@ public class PrestamoCreateDto
     public int PlazoMeses { get; set; }
 
     [Required]
-    [Range(0.001, 100, ErrorMessage = "La tasa mensual debe ser mayor a cero.")]
+    [Range(0, 100, ErrorMessage = "La tasa mensual no puede ser negativa.")]
     public decimal TasaInteresMensual { get; set; }
 
     [Required]
@@ -230,6 +250,8 @@ public class PrestamoCreateDto
 
     [MaxLength(50)]
     public string? Folio { get; set; }
+
+    public DateTime FechaSolicitud { get; set; } = DateTime.Today;
 
     public DateTime FechaEntrega { get; set; } = DateTime.Today;
 

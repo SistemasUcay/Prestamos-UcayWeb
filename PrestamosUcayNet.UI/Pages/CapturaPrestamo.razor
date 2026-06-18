@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize(Roles = "Administrador,Gerente,Contador")]
 @using PrestamosUcayNet.Application.DTOs
+@using PrestamosUcayNet.Domain.Enums
 @implements IDisposable
 @inject PrestamosApiService PrestamosApi
 @inject EmpleadosApiService EmpleadosApi
@@ -22,82 +23,64 @@
             Solicitud de Préstamos 
         </MudText>
         <div class="d-flex gap-1">
-            <MudIconButton Icon="@Icons.Material.Filled.Save" Color="Color.Inherit" Title="Guardar"
-                           OnClick="GuardarPrestamo"  Disabled="@(_saving || !_formValid)"/>
-            <MudIconButton Icon="@Icons.Material.Filled.Refresh" Color="Color.Inherit" Title="Limpiar"
-                           OnClick="LimpiarFormulario" />
-            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Color="Color.Inherit" Title="Regresar a Solicitudes"
-                           OnClick="@(() => Navigation.NavigateTo("/gestion-solicitudes"))" />
+            <MudTooltip Text="Guardar">
+                <MudIconButton Icon="@Icons.Material.Filled.Save" Color="Color.Inherit"
+                               OnClick="GuardarPrestamo"  Disabled="@(_saving || !_formValid)"/>
+            </MudTooltip>
+            <MudTooltip Text="Limpiar">
+                <MudIconButton Icon="@Icons.Material.Filled.Refresh" Color="Color.Inherit"
+                               OnClick="LimpiarFormulario" />
+            </MudTooltip>
+            <MudTooltip Text="Regresar a Solicitudes">
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Color="Color.Inherit"
+                               OnClick="@(() => Navigation.NavigateTo("/gestion-solicitudes"))" />
+            </MudTooltip>
         </div>
     </div>
 </MudPaper>
 
 <MudForm @ref="_form" @bind-IsValid="_formValid">
     @* ── ENCABEZADO ── *@
-    <MudPaper Elevation="1" Class="pa-4 mb-2" Style="border-radius: 0;">
-        <MudGrid Spacing="1">
-            @* Fila 1: Número Solicitud, Fuente de Fondeo, Fecha *@
-            <MudItem xs="12" md="2">
-                <MudTextField T="string" Label="Número Solicitud" Value="@(_prestamoId > 0 ? _prestamoId.ToString() : "Nuevo")"
+    <MudPaper Elevation="1" Class="pa-3 mb-2" Style="border-radius: 0;">
+
+        @* ── Sección 1: Identificación de la solicitud ── *@
+        @* <div class="d-flex align-center gap-1 mb-1">
+            <MudIcon Icon="@Icons.Material.Filled.Assignment" Size="Size.Small" Color="Color.Primary" />
+            <MudText Typo="Typo.caption" Color="Color.Primary" Style="font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">
+                Identificación
+            </MudText>
+            <MudDivider Class="flex-grow-1 ml-1" />
+        </div> *@
+        <MudGrid Spacing="1" Class="mb-2">
+            <MudItem xs="6" md="1">
+                <MudTextField T="string" Label="Folio" Value="@(_prestamoId > 0 ? _prestamoId.ToString() : "Nuevo")"
                               ReadOnly="true" Variant="Variant.Outlined" Margin="Margin.Dense"
                               Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Tag" />
             </MudItem>
-            <MudItem xs="12" md="6">
-                <MudSelect T="int" Label="Fuente de Fondeo" Value="_model.FondeadoraId" ValueChanged="OnFondeadoraChanged" Required="true"                          
+            <MudItem xs="12" md="5">
+                <MudSelect T="int" Label="Fuente de Fondeo" Value="_model.FondeadoraId" ValueChanged="OnFondeadoraChanged" Required="true"
                            Variant="Variant.Outlined" Margin="Margin.Dense" AnchorOrigin="Origin.BottomCenter">
-                    <MudSelectItem Value="0">Seleccionar una empresa</MudSelectItem>
+                    <MudSelectItem Value="0">— Seleccionar empresa —</MudSelectItem>
                     @foreach (var emp in _fondeadoras)
                     {
                         <MudSelectItem Value="@emp.NumEmpresa">@emp.RazonSocial</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
-            <MudItem xs="12" md="2">
-                <MudDatePicker Label="Fecha de la Solicitud" @bind-Date="_fechaSolicitud" Editable="true"
+            <MudItem xs="6" md="2">
+                <MudDatePicker Label="Fecha Solicitud" @bind-Date="_fechaSolicitud" Editable="true"
                                Variant="Variant.Outlined" Margin="Margin.Dense"
                                Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.CalendarToday" />
             </MudItem>
-            <MudItem xs="12" md="2">
+            <MudItem xs="6" md="2">
                 <MudDatePicker Label="Entrega del Préstamo" Date="_fechaEntrega" Editable="true"
                                Variant="Variant.Outlined" Margin="Margin.Dense"
                                Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.CalendarToday"
                                DateChanged="@(async (DateTime? d) => await OnFechaEntregaChanged(d))" />
             </MudItem>
-
-            @* Fila 2: Empleado, Nombre, Sueldo *@
-            <MudItem xs="12" md="2">
-                <MudNumericField T="int" Label="Empleado" @bind-Value="_empleadoIdBuscar" 
-                                 Variant="Variant.Outlined" Margin="Margin.Dense"
-                                 Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search"
-                                 OnAdornmentClick="BuscarEmpleado"
-                                 OnKeyDown="OnEmpleadoKeyDown" />
-            </MudItem>
-            <MudItem xs="12" md="7">
-                @if (_empleadoSeleccionado is not null)
-                {
-                    <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mt-2" Style="font-weight: bold;">
-                        @_empleadoSeleccionado.NombreCompleto
-                    </MudText>
-                }
-                else
-                {
-                    <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mt-3">
-                        Ingrese el ID del empleado y presione Enter o haga clic en la lupa
-                    </MudText>
-                }
-            </MudItem>
-            <MudItem xs="12" md="2">
-                <MudText Typo="Typo.body1">Sueldo Laboral</MudText>
-                <MudText Typo="Typo.h6" Color="Color.Warning" Style="font-weight: bold;">
-                    @((_empleadoSeleccionado?.SueldoLaboral ?? 0).ToString("C2"))
-                </MudText>
-            </MudItem>
-           @*  <MudItem xs="12" md="2" /> *@
-
-            @* Fila 3: Tipo de Préstamo, Observaciones, Total Solicitud *@
             @if (!EsCajaDeAhorro)
             {
-                <MudItem xs="12" md="3">
+                <MudItem xs="12" md="2">
                     <MudSelect T="int" Label="Tipo de Préstamo" @bind-Value="_model.TipoPrestamoId" Required="true"
                                Variant="Variant.Outlined" Margin="Margin.Dense">
                         @foreach (var tp in _tiposPrestamo)
@@ -107,102 +90,94 @@
                     </MudSelect>
                 </MudItem>
             }
-            <MudItem xs="12" md="@(EsCajaDeAhorro ? 9 : 6)">
-                <MudTextField T="string" Label="Observaciones / Motivo" @bind-Value="_model.DestinoCredito"
-                              Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudGrid>
+
+        @* ── Sección 2: Empleado ── *@
+       @*  <div class="d-flex align-center gap-1 mb-1">
+            <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" Color="Color.Primary" />
+            <MudText Typo="Typo.caption" Color="Color.Primary" Style="font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">
+                Empleado
+            </MudText>
+            <MudDivider Class="flex-grow-1 ml-1" />
+        </div> *@
+        <MudGrid Spacing="1" Class="mb-2">
+            <MudItem xs="6" md="2">
+                <MudNumericField T="int" Label="ID Empleado" @bind-Value="_empleadoIdBuscar"
+                                 Variant="Variant.Outlined" Margin="Margin.Dense"
+                                 Immediate="true"
+                                 Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search"
+                                 OnAdornmentClick="BuscarEmpleado"
+                                 OnKeyDown="OnEmpleadoKeyDown" HideSpinButtons="true"/>
             </MudItem>
-            <MudItem xs="12" md="3">
-                <MudPaper Elevation="0" Class="pa-2" Style="background: var(--mud-palette-primary); border-radius: 4px; height: 100%;">
-                    <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.8);">Total Solicitud (Nómina + Directos)</MudText>
+            <MudItem xs="12" md="6">
+                @if (_empleadoSeleccionado is not null)
+                {
+                    <MudPaper Elevation="0" Class="pa-0" Style="background: var(--mud-palette-background-grey); border-radius: 4px; height: 100%; display: flex; align-items: center; gap: 8px;">
+                        <MudIcon Icon="@Icons.Material.Filled.Badge" Color="Color.Primary" />
+                        <div>
+                            <MudText Typo="Typo.subtitle1" Color="Color.Primary" Style="font-weight:bold; line-height:1.2;">
+                                @_empleadoSeleccionado.NombreCompleto
+                            </MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @_empleadoSeleccionado.EmpresaNombre — @_empleadoSeleccionado.PuestoNombre
+                            </MudText>
+                        </div>
+                    </MudPaper>
+                }
+                else
+                {
+                    <MudPaper Elevation="0" Class="pa-0" Style="background: var(--mud-palette-background-grey); border-radius: 4px; height: 100%; display: flex; align-items: center; gap: 8px;">
+                        <MudIcon Icon="@Icons.Material.Filled.PersonSearch" Color="Color.Secondary" />
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            Ingrese el ID del empleado y presione <b>Enter</b> o haga clic en la lupa
+                        </MudText>
+                    </MudPaper>
+                }
+            </MudItem>
+            <MudItem xs="6" md="2">
+                <MudPaper Elevation="0" Class="pa-0" Style="background: var(--mud-palette-background-grey); border-radius: 4px; height: 100%;">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Sueldo Laboral</MudText>
+                    <MudText Typo="Typo.h6" Color="Color.Warning" Style="font-weight:bold;">
+                        @((_empleadoSeleccionado?.SueldoLaboral ?? 0).ToString("C2"))
+                    </MudText>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="6" md="2">
+                <MudPaper Elevation="0" Class="pa-0" Style="background: var(--mud-palette-primary); border-radius: 4px; height: 100%;">
+                    <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.8);">Total Solicitud</MudText>
                     <MudText Typo="Typo.h6" Style="color: white; font-weight: bold;">
                         @TotalSolicitud.ToString("C2")
                     </MudText>
                 </MudPaper>
             </MudItem>
         </MudGrid>
-    </MudPaper>
 
-    @* ── Sección: Préstamos Directos (ancho completo, layout horizontal) ── *@
-    <MudPaper Elevation="1" Class="pa-4 mt-1" Style="border-radius: 0;">
-        <div class="d-flex align-center justify-space-between mb-3" Style="border-bottom: 2px solid var(--mud-palette-primary); padding-bottom: 4px;">
-            <MudText Typo="Typo.subtitle2" Color="Color.Primary" Style="font-weight: bold;">
-                <MudIcon Icon="@Icons.Material.Filled.AddCard" Size="Size.Small" Class="mr-1" Style="vertical-align: middle;" />
-                Préstamos Directos
+        @* ── Sección 3: Términos del Préstamo ── *@
+      @*   <div class="d-flex align-center gap-1 mb-1">
+            <MudIcon Icon="@Icons.Material.Filled.Gavel" Size="Size.Small" Color="Color.Primary" />
+            <MudText Typo="Typo.caption" Color="Color.Primary" Style="font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">
+                Términos
             </MudText>
-            <div class="d-flex align-center gap-4">
-                @if (_prestamosDirectos.Count > 0)
-                {
-                    <MudText Typo="Typo.body2" Style="font-weight: bold;">
-                        Total: <span style="color: var(--mud-palette-primary);">@_prestamosDirectos.Sum(p => p.MontoSolicitado).ToString("C2")</span>
-                    </MudText>
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
-                               StartIcon="@Icons.Material.Filled.Calculate" OnClick="SimularAmortizacion">
-                        Recalcular
-                    </MudButton>
-                }
-                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
-                           StartIcon="@Icons.Material.Filled.Add" OnClick="AgregarPrestamoDirecto">
-                    Agregar Préstamo Directo
-                </MudButton>
-            </div>
-        </div>
-
-        @if (_prestamosDirectos.Count == 0)
-        {
-            <MudAlert Severity="Severity.Normal" Variant="Variant.Text" Dense="true">
-                No hay préstamos directos. Haga clic en <b>Agregar Préstamo Directo</b> para incluir uno.
-            </MudAlert>
-        }
-        else
-        {
-            <MudGrid Spacing="1">
-                @foreach (var (prestamo, idx) in _prestamosDirectos.Select((p, i) => (p, i)))
-                {
-                    <div class="d-flex align-center gap-4" Style="border-bottom: 1px solid var(--mud-palette-primary); padding-bottom: 1px;">
-                    <MudItem xs="12" md="2">
-                        <MudTextField T="string" Label="@($"#{idx + 1} Descripción")" @bind-Value="prestamo.Descripcion"
-                                      Margin="Margin.Dense" Variant="Variant.Outlined" />
-                    </MudItem>
-                    <MudItem xs="12" md="2">
-                        <MudNumericField T="decimal" Label="Monto Solicitado" @bind-Value="prestamo.MontoSolicitado"
-                                         Format="N2" Min="1m" Step="1000" Margin="Margin.Dense"
-                                         Variant="Variant.Outlined" Adornment="Adornment.End" AdornmentText="$" />
-                    </MudItem>
-                    <MudItem xs="6" md="1">
-                        <MudNumericField T="decimal" Label="Tasa Mensual %" @bind-Value="prestamo.TasaMensual"
-                                         Format="N2" Min="0.01m" Step="0.5m" Margin="Margin.Dense"
-                                         Variant="Variant.Outlined"
-                                         ReadOnly="@EsCajaDeAhorro" />
-                    </MudItem>
-                    <MudItem xs="6" md="3">
-                        <MudDatePicker Label="Fecha de Pago" Date="@prestamo.FechaPago"
-                                       DateChanged="@((DateTime? d) => { prestamo.FechaPago = d ?? DateTime.Today; prestamo.DiazPlazo = Math.Max(1, (prestamo.FechaPago - (_fechaEntrega ?? DateTime.Today)).Days); })"
-                                       Margin="Margin.Dense" Variant="Variant.Outlined" Editable="true" />
-                    </MudItem>
-                    <MudItem xs="6" md="1">
-                        <MudNumericField T="int" Label="Días Plazo" Value="@prestamo.DiazPlazo"
-                                         ReadOnly="true" Margin="Margin.Dense"
-                                         Variant="Variant.Outlined" />
-                    </MudItem>
-                    <MudItem xs="6" md="2">
-                        @{
-                            var intPD = Math.Round(prestamo.MontoSolicitado * (prestamo.TasaMensual/100) * (prestamo.DiazPlazo / 30m), 2);
-                            var totalPD = prestamo.MontoSolicitado + intPD;
-                        }
-                        <MudPaper Elevation="0" Class="pa-2" Style="background: var(--mud-palette-background-grey); border-radius: 4px; height: 100%;">
-                            <MudText Typo="Typo.button" Color="Color.Secondary">Intereses: <b>@intPD.ToString("C2")</b></MudText><br />
-                            <MudText Typo="Typo.button" Color="Color.Primary" Style="font-weight: bold;">Total: @totalPD.ToString("C2")</MudText>
-                        </MudPaper>
-                    </MudItem>
-                    <MudItem xs="12" md="1" Class="d-flex align-center">
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
-                                       Size="Size.Medium" Title="Eliminar préstamo directo"
-                                       OnClick="@(() => EliminarPrestamoDirecto(idx))" />
-                    </MudItem>
-                    </div>
-                }
-            </MudGrid>
-        }
+            <MudDivider Class="flex-grow-1 ml-1" />
+        </div> *@
+        <MudGrid Spacing="1">
+            <MudItem xs="12" md="3">
+                <MudSelect T="int" Label="Frecuencia de Pago"
+                           Value="@_model.TipoPagoId" ValueChanged="OnFrecuenciaPagoChanged" Required="true"
+                           Variant="Variant.Outlined" Margin="Margin.Dense"
+                           ReadOnly="true"
+                           HelperText="Determinada por los datos del empleado">
+                    @foreach (var tp in _tiposPago)
+                    {
+                        <MudSelectItem Value="@tp.TipoPagoId">@tp.Descripcion</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="9">
+                <MudTextField T="string" Label="Observaciones / Motivo del Crédito" @bind-Value="_model.DestinoCredito"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+        </MudGrid>
     </MudPaper>
 
     @* ── CUERPO: 3 Paneles ── *@
@@ -210,74 +185,86 @@
         @* ── Panel Izquierdo: Datos del Préstamo ── *@
         <MudItem xs="12" md="3">
             <MudPaper Elevation="1" Class="pa-4" Style="min-height: 480px; border-radius: 0;">
-                <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mb-4" Style="font-weight: bold; border-bottom: 2px solid var(--mud-palette-primary); padding-bottom: 4px;">
-                    <MudIcon Icon="@Icons.Material.Filled.Description" Size="Size.Small" Class="mr-1" Style="vertical-align: middle;" />
-                    Datos del Préstamo Nómina
-                </MudText>
+                <div class="d-flex align-center justify-space-between mb-4" Style="border-bottom: 2px solid var(--mud-palette-primary); padding-bottom: 4px;">
+                    <MudText Typo="Typo.subtitle2" Color="Color.Primary" Style="font-weight: bold;">
+                        <MudIcon Icon="@Icons.Material.Filled.Description" Size="Size.Small" Class="mr-1" Style="vertical-align: middle;" />
+                        Datos del Préstamo Nómina
+                    </MudText>
+                    @if (EsCajaDeAhorro)
+                    {
+                        @if (_nominaActiva)
+                        {
+                            <MudTooltip Text="Limpiar Préstamo Nómina">
+                                <MudIconButton Icon="@Icons.Material.Filled.ClearAll" Color="Color.Error"
+                                               Size="Size.Small" OnClick="LimpiarPrestamoNomina" />
+                            </MudTooltip>
+                        }
+                        else
+                        {
+                            <MudTooltip Text="Activar Préstamo Nómina">
+                                <MudIconButton Icon="@Icons.Material.Filled.AddCircleOutline" Color="Color.Success"
+                                               Size="Size.Small" OnClick="@(() => { _nominaActiva = true; StateHasChanged(); })" />
+                            </MudTooltip>
+                        }
+                    }
+                </div>
 
-                <MudNumericField T="decimal" Label="Importe Solicitado" @bind-Value="_model.MontoAprobado"
-                                 Format="N0" Min="1000m" Step="10000" Required="true"
-                                 Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
-                                 Adornment="Adornment.End" AdornmentText="$" 
-                                 DebounceInterval="500" OnDebounceIntervalElapsed="SimularAmortizacion" />
-
-                <MudNumericField T="decimal" Label="Tasa de Interés Mensual" @bind-Value="_tasaMensual"
-                                 Format="N2" Min="0.01m" Required="true"
-                                 Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
-                                 Adornment="Adornment.End" AdornmentText="%"
-                                 ReadOnly="@EsCajaDeAhorro"
-                                 DebounceInterval="500" OnDebounceIntervalElapsed="SimularAmortizacion" />
-
-                <MudNumericField T="int" Label="Plazo (Meses)" @bind-Value="_model.PlazoMeses"
-                                 Min="1" Max="360" Required="true"
-                                 Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
-                                 ReadOnly="@EsCajaDeAhorro"
-                                 DebounceInterval="500" OnDebounceIntervalElapsed="SimularAmortizacion" />
-
-                <MudSelect T="bool" Label="Vencimiento" Value="_vencimientoManual"
-                           ValueChanged="@((bool v) => { _vencimientoManual = v; if (!v) { RecalcularFechas(); } })"
-                           Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
-                    <MudSelectItem Value="false">Calculado Automático</MudSelectItem>
-                    <MudSelectItem Value="true">Asignar Fecha</MudSelectItem>
-                </MudSelect>
-
-                @if (EsCajaDeAhorro)
+                @if (!_nominaActiva)
                 {
-                    <MudDatePicker Label="Fecha Final de Descuento / Vencimiento"
-                                   Date="_fechaFinalDescuento" Editable="true"
-                                   ReadOnly="@(!_vencimientoManual)"
-                                   Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
-                                   MaxDate="@FechaCierreCajaEfectiva"
-                                   DateChanged="OnFechaVencimientoManualCajaChanged"
-                                   HelperText="@(_vencimientoManual
-                                       ? $"Máximo: {FechaCierreCajaEfectiva?.ToString("dd/MM/yyyy") ?? "—"} (cierre de caja)"
-                                       : "Calculado automáticamente al cierre de caja")" />
+                    <MudAlert Severity="Severity.Info" Dense="true" Class="my-2">
+                        Préstamo Nómina <b>no incluido</b> en esta solicitud.
+                        Haga clic en <MudIcon Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Small" Color="Color.Success" /> para activarlo.
+                    </MudAlert>
                 }
                 else
                 {
-                    <MudDatePicker Label="Fecha Final de Descuento / Vencimiento"
-                                   Date="_fechaFinalDescuento" Editable="true"
-                                   ReadOnly="@(!_vencimientoManual)"
-                                   Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
-                                   DateChanged="@((DateTime? d) => { if (_vencimientoManual) { _fechaFinalDescuento = d; RecalcularFechas(); } })" />
-                }
+                    <MudNumericField T="decimal" Label="Importe Solicitado" @bind-Value="_model.MontoAprobado"
+                                     Format="N0" Min="1000m" Step="10000" Required="true"
+                                     Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
+                                     Adornment="Adornment.End" AdornmentText="$" 
+                                     DebounceInterval="500" OnDebounceIntervalElapsed="SimularAmortizacion" />
 
-                <MudSelect T="int" Label="Frecuencia de Pago" Value="_model.TipoPagoId"
-                           ValueChanged="OnFrecuenciaPagoChanged" Required="true"
-                           Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
-                    @foreach (var tp in _tiposPago)
+                    <MudNumericField T="decimal" Label="Tasa de Interés Mensual" @bind-Value="_tasaMensual"
+                                     Format="N2" Min="0.01m" Required="true"
+                                     Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
+                                     Adornment="Adornment.End" AdornmentText="%"
+                                     ReadOnly="@EsCajaDeAhorro"
+                                     DebounceInterval="500" OnDebounceIntervalElapsed="SimularAmortizacion" />
+
+                    <MudNumericField T="int" Label="Plazo (Meses)"
+                                     @bind-Value="_model.PlazoMeses"
+                                     Min="1" Required="true"
+                                     Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
+                                     ReadOnly="true"
+                                     Validation="@((int v) => ValidarPlazo(v))"
+                                     HelperText="Calculado automáticamente desde la Fecha Final de Descuento" />
+
+                    @if (EsCajaDeAhorro)
                     {
-                        <MudSelectItem Value="@tp.TipoPagoId">@tp.Descripcion</MudSelectItem>
+                        <MudDatePicker Label="Fecha Final de Descuento / Vencimiento"
+                                       Date="_fechaFinalDescuento" Editable="true"
+                                       Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
+                                       MaxDate="@FechaCierreCajaEfectiva"
+                                       DateChanged="OnFechaVencimientoManualCajaChanged"
+                                       HelperText="@($"Máx: {FechaCierreCajaEfectiva?.ToString("dd/MM/yyyy") ?? "—"} (cierre)")" />
                     }
-                </MudSelect>
+                    else
+                    {
+                        <MudDatePicker Label="Fecha Final de Descuento"
+                                       Date="_fechaFinalDescuento" Editable="true"
+                                       Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
+                                       DateChanged="OnFechaFinalNominaChanged"
+                                       HelperText="Modifique la fecha o el plazo; el otro se calculará automáticamente" />
+                    }
 
-                <div class="d-flex gap-2 mt-4">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
-                               StartIcon="@Icons.Material.Filled.Calculate" OnClick="SimularAmortizacion"
-                               Disabled="@(!PuedeSimular)">
-                        Calcular
-                    </MudButton>
-                </div>
+                    <div class="d-flex gap-2 mt-4">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                                   StartIcon="@Icons.Material.Filled.Calculate" OnClick="SimularAmortizacion"
+                                   Disabled="@(!PuedeSimular)">
+                            Calcular
+                        </MudButton>
+                    </div>
+                }
             </MudPaper>
         </MudItem>
 
@@ -333,67 +320,202 @@
                     Resumen del Préstamo
                 </MudText>
 
-                @if (_preview is not null)
+                @if (_preview is null && _prestamosDirectos.Count == 0)
                 {
-                    <MudSimpleTable Dense="true" Hover="true" Bordered="false" Style="border: none;">
-                        <tbody>
-                            <tr>
-                                <td><MudText Typo="Typo.body2">Préstamos Directos</MudText></td>
-                                <td style="text-align: right;"><MudText Typo="Typo.body2" Style="font-weight: bold;">@TotalSolicitud.ToString("N2")</MudText></td>
-                            </tr>
-                            <tr>
-                                <td><MudText Typo="Typo.body2">Capital Amortizable</MudText></td>
-                                <td style="text-align: right;"><MudText Typo="Typo.body2" Style="font-weight: bold;">@_preview.CapitalAmortizable.ToString("N2")</MudText></td>
-                            </tr>
-                            <tr>
-                                <td><MudText Typo="Typo.body2">Total de Intereses</MudText></td>
-                                <td style="text-align: right;"><MudText Typo="Typo.body2" Style="font-weight: bold;">@_preview.TotalIntereses.ToString("N2")</MudText></td>
-                            </tr>
-                            <tr style="border-top: 2px solid var(--mud-palette-primary);">
-                                <td><MudText Typo="Typo.body1" Style="font-weight: bold;">Total a Pagar</MudText></td>
-                                <td style="text-align: right;"><MudText Typo="Typo.body1" Color="Color.Primary" Style="font-weight: bold;">@_preview.TotalPagar.ToString("N2")</MudText></td>
-                            </tr>
-                        </tbody>
-                    </MudSimpleTable>
-
-                    <MudDivider Class="my-4" />
-
-                    <MudSimpleTable Dense="true" Hover="true" Bordered="false" Style="border: none;">
-                        <tbody>
-                            <tr>
-                                <td><MudText Typo="Typo.body2">Cuota por Período</MudText></td>
-                                <td style="text-align: right;"><MudText Typo="Typo.body2" Style="font-weight: bold;">@_preview.CuotaMensual.ToString("N2")</MudText></td>
-                            </tr>
-                            <tr>
-                                <td><MudText Typo="Typo.body2">Tasa por Período</MudText></td>
-                                <td style="text-align: right;"><MudText Typo="Typo.body2" Style="font-weight: bold;">%@_preview.TasaPorPeriodo.ToString("N4")</MudText></td>
-                            </tr>
-                            <tr>
-                                <td><MudText Typo="Typo.body2">Número de Pagos</MudText></td>
-                                <td style="text-align: right;"><MudText Typo="Typo.body2" Style="font-weight: bold;">@_preview.NumeroPagos</MudText></td>
-                            </tr>
-                            <tr>
-                                <td><MudText Typo="Typo.body2">Días de Plazo</MudText></td>
-                                <td style="text-align: right;"><MudText Typo="Typo.body2" Style="font-weight: bold;">@_preview.DiasPlayzo</MudText></td>
-                            </tr>
-                            <tr>
-                                <td><MudText Typo="Typo.body2">Fecha del último Pago</MudText></td>
-                                <td style="text-align: right;"><MudText Typo="Typo.body2" Style="font-weight: bold;">@_preview.FechaUltimoPago.ToString("dd/MM/yyyy")</MudText></td>
-                            </tr>
-                        </tbody>
-                    </MudSimpleTable>
+                    <MudAlert Severity="Severity.Normal" Variant="Variant.Text" Class="mt-4">
+                        El resumen se mostrará después de agregar préstamos directos o calcular la amortización.
+                    </MudAlert>
                 }
                 else
                 {
-                    <MudAlert Severity="Severity.Normal" Variant="Variant.Text" Class="mt-4">
-                        El resumen se mostrará después de calcular la amortización.
-                    </MudAlert>
+                    var _resumenDirectosCapital   = _prestamosDirectos.Sum(p => p.MontoSolicitado);
+                    var _resumenDirectosIntereses = _prestamosDirectos.Sum(p =>
+                        Math.Round(p.MontoSolicitado * (p.TasaMensual / 100m) * (p.DiazPlazo / 30m), 2));
+                    var _resumenDirectosTotal     = _resumenDirectosCapital + _resumenDirectosIntereses;
+                    var _resumenNominaTotal        = (_preview is not null && _nominaActiva) ? _preview.TotalPagar : 0m;
+                    var _resumenGranTotal          = _resumenDirectosTotal + _resumenNominaTotal;
+
+                    @* ── Sección 1: Préstamos Directos ── *@
+                    @if (_prestamosDirectos.Count > 0)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">
+                            Préstamos Directos
+                        </MudText>
+                        <MudSimpleTable Dense="true" Bordered="false" Style="border:none; margin-bottom:4px;">
+                            <tbody>
+                                <tr>
+                                    <td><MudText Typo="Typo.body2">Capital</MudText></td>
+                                    <td style="text-align:right;"><MudText Typo="Typo.body2" Style="font-weight:bold;">@_resumenDirectosCapital.ToString("N2")</MudText></td>
+                                </tr>
+                                <tr>
+                                    <td><MudText Typo="Typo.body2">Intereses</MudText></td>
+                                    <td style="text-align:right;"><MudText Typo="Typo.body2" Style="font-weight:bold;">@_resumenDirectosIntereses.ToString("N2")</MudText></td>
+                                </tr>
+                                <tr style="border-top: 1px solid var(--mud-palette-lines-default);">
+                                    <td><MudText Typo="Typo.body2" Style="font-weight:bold;">Total Directos</MudText></td>
+                                    <td style="text-align:right;"><MudText Typo="Typo.body2" Color="Color.Secondary" Style="font-weight:bold;">@_resumenDirectosTotal.ToString("N2")</MudText></td>
+                                </tr>
+                            </tbody>
+                        </MudSimpleTable>
+                        <MudDivider Class="mb-2" />
+                    }
+
+                    @* ── Sección 2: Préstamo de Nómina (requiere amortización calculada) ── *@
+                    @if (_preview is not null && _nominaActiva)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">
+                            Préstamo Nómina
+                        </MudText>
+                        <MudSimpleTable Dense="true" Bordered="false" Style="border:none; margin-bottom:4px;">
+                            <tbody>
+                                <tr>
+                                    <td><MudText Typo="Typo.body2">Capital Amortizable</MudText></td>
+                                    <td style="text-align:right;"><MudText Typo="Typo.body2" Style="font-weight:bold;">@_preview.CapitalAmortizable.ToString("N2")</MudText></td>
+                                </tr>
+                                <tr>
+                                    <td><MudText Typo="Typo.body2">Total de Intereses</MudText></td>
+                                    <td style="text-align:right;"><MudText Typo="Typo.body2" Style="font-weight:bold;">@_preview.TotalIntereses.ToString("N2")</MudText></td>
+                                </tr>
+                                <tr style="border-top: 1px solid var(--mud-palette-lines-default);">
+                                    <td><MudText Typo="Typo.body2" Style="font-weight:bold;">Total Nómina</MudText></td>
+                                    <td style="text-align:right;"><MudText Typo="Typo.body2" Color="Color.Secondary" Style="font-weight:bold;">@_preview.TotalPagar.ToString("N2")</MudText></td>
+                                </tr>
+                            </tbody>
+                        </MudSimpleTable>
+                        <MudDivider Class="mb-2" />
+                    }
+
+                    @* ── Sección 3: Total General ── *@
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">
+                        Total General de la Solicitud
+                    </MudText>
+                    <MudSimpleTable Dense="true" Bordered="false" Style="border:none; margin-bottom:4px;">
+                        <tbody>
+                            @if (_prestamosDirectos.Count > 0)
+                            {
+                                <tr>
+                                    <td><MudText Typo="Typo.body2">Préstamos Directos</MudText></td>
+                                    <td style="text-align:right;"><MudText Typo="Typo.body2" Style="font-weight:bold;">@_resumenDirectosTotal.ToString("N2")</MudText></td>
+                                </tr>
+                            }
+                            @if (_preview is not null && _nominaActiva)
+                            {
+                                <tr>
+                                    <td><MudText Typo="Typo.body2">Préstamo Nómina</MudText></td>
+                                    <td style="text-align:right;"><MudText Typo="Typo.body2" Style="font-weight:bold;">@_resumenNominaTotal.ToString("N2")</MudText></td>
+                                </tr>
+                            }
+                            <tr style="border-top: 2px solid var(--mud-palette-primary);">
+                                <td><MudText Typo="Typo.body1" Style="font-weight:bold;">Gran Total</MudText></td>
+                                <td style="text-align:right;"><MudText Typo="Typo.body1" Color="Color.Primary" Style="font-weight:bold;">@_resumenGranTotal.ToString("N2")</MudText></td>
+                            </tr>
+                        </tbody>
+                    </MudSimpleTable>
+                    <MudDivider Class="mb-2" />
                 }
             </MudPaper>
         </MudItem>
     </MudGrid>
 
-    
+    @* ── Sección: Préstamos Directos (ancho completo, layout horizontal) ── *@
+    <MudPaper Elevation="1" Class="pa-4 mt-1" Style="border-radius: 0;">
+        <div class="d-flex align-center justify-space-between mb-3" Style="border-bottom: 2px solid var(--mud-palette-primary); padding-bottom: 4px;">
+            <MudText Typo="Typo.subtitle2" Color="Color.Primary" Style="font-weight: bold;">
+                <MudIcon Icon="@Icons.Material.Filled.AddCard" Size="Size.Small" Class="mr-1" Style="vertical-align: middle;" />
+                Préstamos Directos
+            </MudText>
+            <div class="d-flex align-center gap-4">
+                @if (_prestamosDirectos.Count > 0)
+                {
+                    var _totalMonto     = _prestamosDirectos.Sum(p => p.MontoSolicitado);
+                    var _totalIntereses = _prestamosDirectos.Sum(p =>
+                        Math.Round(p.MontoSolicitado * (p.TasaMensual / 100m) * (p.DiazPlazo / 30m), 2));
+                    var _totalGeneral   = _totalMonto + _totalIntereses;
+                    <div class="d-flex align-center gap-4">
+                        <MudText Typo="Typo.body2">
+                            Capital: <span style="color: var(--mud-palette-primary); font-weight: bold;">@_totalMonto.ToString("C2")</span>
+                        </MudText>
+                        <MudText Typo="Typo.body2">
+                            Intereses: <span style="color: var(--mud-palette-warning); font-weight: bold;">@_totalIntereses.ToString("C2")</span>
+                        </MudText>
+                        <MudText Typo="Typo.body2">
+                            Total: <span style="color: var(--mud-palette-success); font-weight: bold;">@_totalGeneral.ToString("C2")</span>
+                        </MudText>
+                    </div>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Calculate" OnClick="SimularAmortizacion">
+                        Recalcular
+                    </MudButton>
+                }
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.Add" OnClick="AgregarPrestamoDirecto">
+                    Préstamo Directo
+                </MudButton>
+            </div>
+        </div>
+
+        @if (_prestamosDirectos.Count == 0)
+        {
+            <MudAlert Severity="Severity.Normal" Variant="Variant.Text" Dense="true">
+                No hay préstamos directos. Haga clic en <b>Agregar Préstamo Directo</b> para incluir uno.
+            </MudAlert>
+        }
+        else
+        {
+            <MudGrid Spacing="1">
+                @foreach (var (prestamo, idx) in _prestamosDirectos.Select((p, i) => (p, i)))
+                {
+                    <div class="d-flex align-center gap-2" Style="border-bottom: 1px solid var(--mud-palette-primary); padding-bottom: 1px;">
+                    <MudItem xs="12" md="3">
+                        <MudTextField T="string" Label="@($"#{idx + 1} Descripción")" @bind-Value="prestamo.Descripcion"
+                                      Margin="Margin.Dense" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="2">
+                        <MudNumericField T="decimal" Label="Monto Solicitado" @bind-Value="prestamo.MontoSolicitado"
+                                         Format="N2" Min="1m" Step="1000" Margin="Margin.Dense"
+                                         Variant="Variant.Outlined" Adornment="Adornment.End" AdornmentText="$" />
+                    </MudItem>
+                    <MudItem xs="6" md="1">
+                        <MudNumericField T="decimal" Label="Tasa Mensual %" @bind-Value="prestamo.TasaMensual"
+                                         Format="N2" Min="0.01m" Step="0.5m" Margin="Margin.Dense"
+                                         Variant="Variant.Outlined"
+                                         ReadOnly="@EsCajaDeAhorro" />
+                    </MudItem>
+                    <MudItem xs="6" md="2">
+                        <MudDatePicker Label="Fecha de Pago" Date="@prestamo.FechaPago"
+                                       DateChanged="@((DateTime? d) => OnFechaPagoDirectoChanged(prestamo, d))"
+                                       Margin="Margin.Dense" Variant="Variant.Outlined" Editable="true"
+                                       MaxDate="@(EsCajaDeAhorro ? FechaCierreDirectoEfectiva : null)"/>
+                    </MudItem>
+                    <MudItem xs="6" md="1">
+                        <MudNumericField T="int" Label="Días Plazo" Value="@prestamo.DiazPlazo"
+                                         ReadOnly="true" Margin="Margin.Dense"
+                                         Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="6" md="2">
+                        @{
+                            var intPD = Math.Round(prestamo.MontoSolicitado * (prestamo.TasaMensual/100) * (prestamo.DiazPlazo / 30m), 2);
+                            var totalPD = prestamo.MontoSolicitado + intPD;
+                        }
+                        <MudPaper Elevation="0" Class="pa-0" Style="background: var(--mud-palette-background-grey); border-radius: 4px; height: 100%;">
+                            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Intereses: <b>@intPD.ToString("C2")</b></MudText>
+                            <MudText Typo="Typo.subtitle2" Color="Color.Primary" Style="font-weight: bold;">Total: @totalPD.ToString("C2")</MudText>
+                        </MudPaper>
+                    </MudItem>
+                    <MudItem xs="12" md="1" Class="d-flex align-content-lg-end">
+                        <MudTooltip Text="Eliminar préstamo directo">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" 
+                                           Size="Size.Medium"
+                                           OnClick="@(() => EliminarPrestamoDirecto(idx))" />
+                        </MudTooltip>
+                    </MudItem>
+                    </div>
+                }
+            </MudGrid>
+        }
+    </MudPaper>
+
+
 </MudForm>
 
 @* ── Diálogo: Confirmar Salida sin Guardar ── *@
@@ -480,15 +602,108 @@
         <MudAlert Severity="Severity.Info" Class="mb-4">
             ¿Está seguro de registrar la solicitud con los siguientes datos?
         </MudAlert>
+
+        @* ── Préstamo Nómina ── *@
+        @if (_nominaActiva)
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;" Class="mb-1">
+                Préstamo Nómina
+            </MudText>
+            <MudSimpleTable Dense="true" Class="mb-3">
+                <tbody>
+                    <tr><td>Empleado</td><td><b>@(_empleadoSeleccionado?.NombreCompleto ?? "—")</b></td></tr>
+                    <tr><td>Monto</td><td><b>@_model.MontoAprobado.ToString("C2")</b></td></tr>
+                    <tr><td>Plazo</td><td><b>@_model.PlazoMeses meses</b></td></tr>
+                    <tr><td>Tasa Mensual</td><td><b>@_tasaMensual.ToString("N2")%</b></td></tr>
+                    <tr><td>Cuota por Período</td><td><b>@(_preview?.CuotaMensual.ToString("C2") ?? "—")</b></td></tr>
+                    <tr><td>Número de Pagos</td><td><b>@(_preview?.NumeroPagos.ToString() ?? "—")</b></td></tr>
+                    <tr><td>Total a Pagar</td><td><b>@(_preview?.TotalPagar.ToString("C2") ?? "—")</b></td></tr>
+                </tbody>
+            </MudSimpleTable>
+        }
+
+        @* ── Préstamos Directos ── *@
+        @if (_prestamosDirectos.Count > 0)
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;" Class="mb-1">
+                Préstamos Directos
+            </MudText>
+            <MudSimpleTable Dense="true" Class="mb-3">
+                <thead>
+                    <tr>
+                        <th>Descripción</th>
+                        <th style="text-align:right;">Monto</th>
+                        <th style="text-align:right;">Tasa %</th>
+                        <th style="text-align:right;">Fecha Pago</th>
+                        <th style="text-align:right;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var pd in _prestamosDirectos)
+                    {
+                        var intPD   = Math.Round(pd.MontoSolicitado * (pd.TasaMensual / 100m) * (pd.DiazPlazo / 30m), 2);
+                        var totalPD = pd.MontoSolicitado + intPD;
+                        <tr>
+                            <td>@pd.Descripcion</td>
+                            <td style="text-align:right;"><b>@pd.MontoSolicitado.ToString("C2")</b></td>
+                            <td style="text-align:right;">@pd.TasaMensual.ToString("N2")%</td>
+                            <td style="text-align:right;">@pd.FechaPago.ToString("dd/MM/yyyy")</td>
+                            <td style="text-align:right;"><b>@totalPD.ToString("C2")</b></td>
+                        </tr>
+                    }
+                    <tr style="border-top: 2px solid var(--mud-palette-primary);">
+                        <td colspan="4"><b>Total Directos</b></td>
+                        <td style="text-align:right;"><b>@(_prestamosDirectos.Sum(p => p.MontoSolicitado + Math.Round(p.MontoSolicitado * (p.TasaMensual / 100m) * (p.DiazPlazo / 30m), 2)).ToString("C2"))</b></td>
+                    </tr>
+                </tbody>
+            </MudSimpleTable>
+        }
+
+        @{
+            var capitalNominaResumen = _nominaActiva ? _model.MontoAprobado : 0m;
+            var interesNominaResumen = (_nominaActiva && _preview is not null) ? _preview.TotalIntereses : 0m;
+            var totalNominaResumen = capitalNominaResumen + interesNominaResumen;
+
+            var capitalDirectosResumen = _prestamosDirectos.Sum(p => p.MontoSolicitado);
+            var interesDirectosResumen = _prestamosDirectos.Sum(p => Math.Round(p.MontoSolicitado * (p.TasaMensual / 100m) * (p.DiazPlazo / 30m), 2));
+            var totalDirectosResumen = capitalDirectosResumen + interesDirectosResumen;
+
+            var capitalGeneralResumen = capitalNominaResumen + capitalDirectosResumen;
+            var interesesGeneralResumen = interesNominaResumen + interesDirectosResumen;
+            var totalGeneralResumen = totalNominaResumen + totalDirectosResumen;
+        }
+
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;" Class="mb-1">
+            Resumen General (Capital + Intereses)
+        </MudText>
         <MudSimpleTable Dense="true">
+            <thead>
+                <tr>
+                    <th>Concepto</th>
+                    <th style="text-align:right;">Capital</th>
+                    <th style="text-align:right;">Intereses</th>
+                    <th style="text-align:right;">Total</th>
+                </tr>
+            </thead>
             <tbody>
-                <tr><td>Empleado</td><td><b>@(_empleadoSeleccionado?.NombreCompleto ?? "—")</b></td></tr>
-                <tr><td>Monto</td><td><b>@_model.MontoAprobado.ToString("C2")</b></td></tr>
-                <tr><td>Plazo</td><td><b>@_model.PlazoMeses meses</b></td></tr>
-                <tr><td>Tasa Mensual</td><td><b>@_tasaMensual.ToString("N2")%</b></td></tr>
-                <tr><td>Cuota por Período</td><td><b>@(_preview?.CuotaMensual.ToString("C2") ?? "—")</b></td></tr>
-                <tr><td>Número de Pagos</td><td><b>@(_preview?.NumeroPagos.ToString() ?? "—")</b></td></tr>
-                <tr><td>Total a Pagar</td><td><b>@(_preview?.TotalPagar.ToString("C2") ?? "—")</b></td></tr>
+                <tr>
+                    <td>Préstamo Nómina</td>
+                    <td style="text-align:right;"><b>@capitalNominaResumen.ToString("C2")</b></td>
+                    <td style="text-align:right;"><b>@interesNominaResumen.ToString("C2")</b></td>
+                    <td style="text-align:right;"><b>@totalNominaResumen.ToString("C2")</b></td>
+                </tr>
+                <tr>
+                    <td>Préstamos Directos</td>
+                    <td style="text-align:right;"><b>@capitalDirectosResumen.ToString("C2")</b></td>
+                    <td style="text-align:right;"><b>@interesDirectosResumen.ToString("C2")</b></td>
+                    <td style="text-align:right;"><b>@totalDirectosResumen.ToString("C2")</b></td>
+                </tr>
+                <tr style="border-top: 2px solid var(--mud-palette-primary);">
+                    <td><b>Total General</b></td>
+                    <td style="text-align:right;"><b>@capitalGeneralResumen.ToString("C2")</b></td>
+                    <td style="text-align:right;"><b>@interesesGeneralResumen.ToString("C2")</b></td>
+                    <td style="text-align:right;"><b>@totalGeneralResumen.ToString("C2")</b></td>
+                </tr>
             </tbody>
         </MudSimpleTable>
     </DialogContent>
@@ -510,7 +725,8 @@
     </DialogActions>
 </MudDialog>
 
-@code {
+@code 
+{
     [Parameter] public int? PrestamoEditId { get; set; }
 
     // ── Modelo ──
@@ -526,9 +742,7 @@
     private DateTime? _fechaSolicitud = DateTime.Today;
     private DateTime? _fechaEntrega = DateTime.Today;
     // Única fuente de verdad para la fecha final de descuento / vencimiento.
-    // En modo "auto" se calcula; en modo "manual" la escribe el usuario.
     private DateTime? _fechaFinalDescuento;
-    private bool _vencimientoManual = false;
     private int _prestamoId;
 
     // ── Catálogos ──
@@ -562,6 +776,24 @@
         }
     }
 
+    /// <summary>
+    /// Fecha máxima permitida para los Préstamos Directos de Caja de Ahorro.
+    /// Es el último día del mes en que cae el cierre de caja, lo que permite
+    /// que los directos venzan hasta el fin de ese mes (a diferencia de los
+    /// préstamos nómina que se limitan al día exacto del cierre).
+    /// Ejemplo: cierre 23-oct-2026 → máximo directo 31-oct-2026.
+    /// </summary>
+    private DateTime? FechaCierreDirectoEfectiva
+    {
+        get
+        {
+            DateTime? cierre = FechaCierreCajaEfectiva;
+            if (cierre is null) return null;
+            return new DateTime(cierre.Value.Year, cierre.Value.Month,
+                DateTime.DaysInMonth(cierre.Value.Year, cierre.Value.Month));
+        }
+    }
+
     // ── Empleado ──
     private int _empleadoIdBuscar;
     private EmpleadoDetailDto? _empleadoSeleccionado;
@@ -581,9 +813,16 @@
     // ── Preview ──
     private AmortizacionPreviewResultDto? _preview;
     private bool _simulando;
+    // Evita que los callbacks ValueChanged/DateChanged re-disparen la simulación
+    // cuando la propia simulación actualiza _fechaFinalDescuento y _model.PlazoMeses.
+    private bool _actualizandoDesdeSimulacion;
 
     // ── Préstamos Directos ──
     private List<PrestamoDirectoCreateDto> _prestamosDirectos = [];
+
+    // ── Modalidades ──
+    /// <summary>Indica si el Préstamo Nómina está incluido en la solicitud. Solo puede desactivarse cuando la fondeadora es Caja de Ahorro.</summary>
+    private bool _nominaActiva = true;
 
     // ── Form ──
     private MudForm _form = null!;
@@ -595,6 +834,7 @@
     private IDisposable? _locationChangingRegistration;
 
     private bool PuedeSimular => 
+        _nominaActiva &&
         _model.FondeadoraId > 0 && 
         _model.EmpleadoId > 0 && 
         (EsCajaDeAhorro || _model.TipoPrestamoId > 0) && 
@@ -605,15 +845,65 @@
     private bool EsCajaDeAhorro => 
         _fondeadoras.FirstOrDefault(f => f.NumEmpresa == _model.FondeadoraId)?.IsCajaDeAhorro ?? false;
 
+    private ClasificacionTipoPrestamo? ClasificacionSeleccionada =>
+        _tiposPrestamo.FirstOrDefault(tp => tp.TipoPrestamoId == _model.TipoPrestamoId)?.Clasificacion;
+
+    private int PlazoMinimo => ClasificacionSeleccionada switch
+    {
+        ClasificacionTipoPrestamo.LargoPlazo       => 13,
+        ClasificacionTipoPrestamo.PrestamoHipotecario => 13,
+        _                                          => 1
+    };
+
+    private int PlazoMaximo => ClasificacionSeleccionada switch
+    {
+        ClasificacionTipoPrestamo.CortoPlazo => 12,
+        _                                    => 360
+    };
+
+    private string? HelperTextPlazo => ClasificacionSeleccionada switch
+    {
+        ClasificacionTipoPrestamo.CortoPlazo          => "Máx. 12 meses (Corto Plazo)",
+        ClasificacionTipoPrestamo.LargoPlazo          => "Mín. 13 meses (Largo Plazo)",
+        ClasificacionTipoPrestamo.PrestamoHipotecario => "Mín. 13 meses (Hipotecario)",
+        _                                             => null
+    };
+
+    /// <summary>
+    /// Tasa mensual que aplica a los Préstamos Directos según los parámetros generales.
+    /// - Caja de Ahorro: usa TasaFijaDirecto si está configurada, si no _tasaMensual.
+    /// - Empresa (no Caja): usa la misma TasaFijaEmpresa que la nómina (_tasaMensual).
+    /// </summary>
+    private decimal TasaDirectoEfectiva =>
+        EsCajaDeAhorro
+            ? _parametros.TasaFijaDirecto ?? _tasaMensual
+            : _tasaMensual;
+
+    private string? ValidarPlazo(int valor)
+    {
+        if (EsCajaDeAhorro) return null;
+        return ClasificacionSeleccionada switch
+        {
+            ClasificacionTipoPrestamo.CortoPlazo when valor > 12
+                => "Corto Plazo no puede exceder 12 meses.",
+            ClasificacionTipoPrestamo.LargoPlazo when valor <= 12
+                => "Largo Plazo debe ser mayor a 12 meses.",
+            ClasificacionTipoPrestamo.PrestamoHipotecario when valor <= 12
+                => "Préstamo Hipotecario debe ser mayor a 12 meses.",
+            _ => null
+        };
+    }
+
     private decimal TotalSolicitud =>
-        _model.MontoAprobado + _prestamosDirectos.Sum(p => p.MontoSolicitado);
+        (_nominaActiva ? _model.MontoAprobado : 0m) + _prestamosDirectos.Sum(p => p.MontoSolicitado);
 
     private bool FormularioModificado =>
         _model.FondeadoraId > 0 ||
         _model.EmpleadoId > 0 ||
-        _model.MontoAprobado > 0 ||
+        (_nominaActiva && _model.MontoAprobado > 0) ||
         !string.IsNullOrWhiteSpace(_model.DestinoCredito) ||
-        _prestamosDirectos.Count > 0;
+        _prestamosDirectos.Count > 0 ||
+        !_nominaActiva;
 
     protected override async Task OnInitializedAsync()
     {
@@ -636,6 +926,10 @@
 
             if (_tiposPago.Count > 0)
                 _model.TipoPagoId = _tiposPago[0].TipoPagoId;
+
+            var cortoPlazo = _tiposPrestamo.FirstOrDefault(tp => tp.Clasificacion == ClasificacionTipoPrestamo.CortoPlazo);
+            if (cortoPlazo is not null)
+                _model.TipoPrestamoId = cortoPlazo.TipoPrestamoId;
         }
         catch (Exception ex)
         {
@@ -683,7 +977,7 @@
             _empleadoIdBuscar = detalle.EmpleadoId;
             await CargarEmpleadoPorId(detalle.EmpleadoId);
 
-            // Cargar préstamos directos existentes
+            // Cargar préstamos directos existentes ordenados por fecha de pago
             if (detalle.PrestamosDirectos?.Count > 0)
             {
                 _prestamosDirectos = detalle.PrestamosDirectos
@@ -694,7 +988,9 @@
                         TasaMensual = pd.TasaMensual,
                         FechaPago = pd.FechaPago,
                         DiazPlazo = pd.DiazPlazo
-                    }).ToList();
+                    })
+                    .OrderBy(pd => pd.FechaPago)
+                    .ToList();
             }
 
             // Crear el preview con la tabla de amortización completa
@@ -736,20 +1032,19 @@
 
     private async Task BuscarEmpleado()
     {
-        if (_empleadoIdBuscar <= 0)
-        {
-            _buscarEmpleadoVisible = true;
-            return;
-        }
-
-        await CargarEmpleadoPorId(_empleadoIdBuscar);
+        _buscarEmpleadoVisible = true;
     }
 
     private async Task OnEmpleadoKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Enter")
         {
-            await BuscarEmpleado();
+            if (_empleadoIdBuscar == 0)
+                await BuscarEmpleado();
+            else
+            {
+                await CargarEmpleadoPorId(_empleadoIdBuscar);                
+            }
         }
     }
 
@@ -769,6 +1064,8 @@
 
             if (_empleadoSeleccionado.TipoPagoId > 0)
                 _model.TipoPagoId = _empleadoSeleccionado.TipoPagoId;
+
+            StateHasChanged();
         }
         catch (Exception ex)
         {
@@ -830,8 +1127,23 @@
         }
     }
 
+    /// <summary>
+    /// Cuando el usuario cambia la Fecha Final en modo nómina (no Caja de Ahorro),
+    /// recalcula el plazo en meses y lanza la simulación.
+    /// </summary>
+    private async Task OnFechaFinalNominaChanged(DateTime? fecha)
+    {
+        if (_actualizandoDesdeSimulacion) return;
+        _preview = null;
+        _fechaFinalDescuento = fecha;
+        RecalcularFechas();
+        StateHasChanged();
+        await SimularAmortizacionCore(recalcularFechas: false);
+    }
+
     private void OnFechaVencimientoManualCajaChanged(DateTime? fecha)
     {
+        _preview = null;
         if (!EsCajaDeAhorro || fecha is null)
         {
             _fechaFinalDescuento = fecha;
@@ -909,6 +1221,16 @@
         return cursor.AddDays(-intervalo);
     }
 
+    /// <summary>
+    /// Devuelve <c>true</c> si <paramref name="fecha"/> coincide exactamente con un corte
+    /// del calendario de nómina del tipo de pago seleccionado.
+    /// </summary>
+    private bool EsFechaDeNomina(DateTime fecha)
+    {
+        var fechaCorte = AjustarAFechaNomina(fecha);
+        return fechaCorte.HasValue && fechaCorte.Value.Date == fecha.Date;
+    }
+
     private async Task OnFondeadoraChanged(int fondeadoraId)
     {
         _model.FondeadoraId = fondeadoraId;
@@ -930,9 +1252,14 @@
         else
         {
             _parametrosProximoAnio = null;
+            _nominaActiva = true; // Nómina siempre requerida cuando la fondeadora no es Caja de Ahorro
             if (_parametros.TasaFijaEmpresa.HasValue)
                 _tasaMensual = _parametros.TasaFijaEmpresa.Value;
         }
+
+        // Reestablecer la tasa de los préstamos directos ya capturados
+        foreach (var d in _prestamosDirectos)
+            d.TasaMensual = TasaDirectoEfectiva;
 
         StateHasChanged();
     }
@@ -945,11 +1272,46 @@
 
     private async Task OnFechaEntregaChanged(DateTime? newDate)
     {
+        if (newDate.HasValue)
+        {
+            if (_fechaSolicitud.HasValue && newDate.Value.Date < _fechaSolicitud.Value.Date)
+            {
+                Snackbar.Add($"La fecha de entrega ({newDate.Value:dd/MM/yyyy}) no puede ser menor a la fecha de la solicitud ({_fechaSolicitud.Value:dd/MM/yyyy}).", Severity.Warning);
+                return;
+            }
+
+            try
+            {
+                var paramsAnio = await ParametrosApi.GetParametrosAsync(newDate.Value.Year);
+                if (paramsAnio == null || paramsAnio.Anio != newDate.Value.Year)
+                {
+                    Snackbar.Add($"No existen parámetros generales configurados para el año {newDate.Value.Year}. Se requiere para generar el calendario de nómina.", Severity.Error);
+                    return;
+                }
+                _parametros = paramsAnio;
+            }
+            catch (Exception)
+            {
+                Snackbar.Add($"No existen parámetros generales configurados para el año {newDate.Value.Year}. Se requiere para generar el calendario de nómina.", Severity.Error);
+                return;
+            }
+        }
+
         _fechaEntrega = newDate;
         _model.FechaEntrega = newDate ?? DateTime.Today;
+        _preview = null;
+
         if (EsCajaDeAhorro)
             await VerificarParametrosProxAnioAsync();
+
         RecalcularFechas();
+
+        // Recalcular días de plazo de todos los préstamos directos existentes
+        // usando la nueva fecha de entrega como base.
+        DateTime fechaBase = _fechaEntrega ?? DateTime.Today;
+        foreach (var pd in _prestamosDirectos)
+            pd.DiazPlazo = Math.Max(1, (pd.FechaPago - fechaBase).Days);
+        await SimularAmortizacion();
     }
 
     private void RecalcularFechas()
@@ -958,30 +1320,39 @@
 
         if (EsCajaDeAhorro)
         {
-            if (!_vencimientoManual || !_fechaFinalDescuento.HasValue)
-            {
-                // Modo automático: siempre usar el cierre de caja
-                _fechaFinalDescuento = FechaCierreCajaEfectiva ?? _fechaEntrega.Value.AddMonths(_model.PlazoMeses);
-            }
-            // Modo manual: _fechaFinalDescuento ya fue fijada por el picker; no sobreescribir.
-
-            // Plazo en meses siempre derivado de la fecha final de descuento
-            int meses = (int)Math.Ceiling(
-                (_fechaFinalDescuento!.Value - _fechaEntrega.Value).TotalDays / 30.4375);
-            _model.PlazoMeses = Math.Max(1, meses);
+            // Si aún no hay fecha final, inicializar con el cierre de caja
+            if (!_fechaFinalDescuento.HasValue)
+                _fechaFinalDescuento = FechaCierreCajaEfectiva ?? _fechaEntrega.Value.AddMonths(1);
         }
-        else if (_model.PlazoMeses > 0)
+        else
         {
-            _fechaFinalDescuento = _fechaEntrega.Value.AddMonths(_model.PlazoMeses);
+            // Si no hay fecha final capturada, inicializar a un mes
+            if (!_fechaFinalDescuento.HasValue)
+                _fechaFinalDescuento = _fechaEntrega.Value.AddMonths(1);
+        }
+
+        // Plazo siempre derivado de la fecha final de descuento
+        if (_fechaFinalDescuento.HasValue && _fechaFinalDescuento.Value > _fechaEntrega.Value)
+        {
+            int meses = (int)Math.Ceiling(
+                (_fechaFinalDescuento.Value - _fechaEntrega.Value).TotalDays / 30.4375);
+            _model.PlazoMeses = Math.Max(1, meses);
         }
     }
 
     private async Task SimularAmortizacion()
     {
+        await SimularAmortizacionCore(recalcularFechas: true);
+    }
+
+    private async Task SimularAmortizacionCore(bool recalcularFechas)
+    {
+        if (!_nominaActiva) return;
         if (!PuedeSimular) return;
 
         _simulando = true;
-        RecalcularFechas();
+        if (recalcularFechas)
+            RecalcularFechas();
 
         try
         {
@@ -989,7 +1360,6 @@
 
             var tipoPagoSeleccionado = _tiposPago.FirstOrDefault(tp => tp.TipoPagoId == _model.TipoPagoId);
 
-            // Seleccionar la fecha de inicio de período según la frecuencia de pago
             DateTime? fechaInicioPeriodo = tipoPagoSeleccionado?.IntervaloDiario switch
             {
                 7  => _parametros.InicioPeriodoSemanal,
@@ -997,19 +1367,24 @@
                 _  => null
             };
 
+            // FechaCierreCaja solo aplica para Caja de Ahorro.
+            // Para nómina normal se determina si la fecha final coincide con un corte;
+            // en ese caso se pasa como cap en una segunda llamada (ver abajo).
+            DateTime? cierreCaja = EsCajaDeAhorro
+                ? _fechaFinalDescuento ?? FechaCierreCajaEfectiva
+                : null;
+
             var dto = new SimularAmortizacionDto
             {
-                MontoAprobado = _model.MontoAprobado,
-                PlazoMeses = _model.PlazoMeses,
-                TasaInteresAnual = _tasaMensual * 12m,
-                FechaEntrega = _fechaEntrega ?? DateTime.Today,
-                IntervaloDiario = tipoPagoSeleccionado?.IntervaloDiario ?? 30,
-                FrecuenciaAnual = tipoPagoSeleccionado?.FrecuenciaAnual ?? 12,
+                MontoAprobado      = _model.MontoAprobado,
+                PlazoMeses         = _model.PlazoMeses,
+                TasaInteresAnual   = _tasaMensual * 12m,
+                FechaEntrega       = _fechaEntrega ?? DateTime.Today,
+                IntervaloDiario    = tipoPagoSeleccionado?.IntervaloDiario ?? 30,
+                FrecuenciaAnual    = tipoPagoSeleccionado?.FrecuenciaAnual ?? 12,
                 FechaInicioPeriodo = fechaInicioPeriodo,
-                // Para Caja de Ahorro, el cap es siempre _fechaFinalDescuento (que en modo auto
-                // ya contiene FechaCierreCajaEfectiva y en modo manual la fecha validada).
-                FechaCierreCaja = EsCajaDeAhorro ? _fechaFinalDescuento ?? FechaCierreCajaEfectiva : null,
-                PrestamosDirectos = _prestamosDirectos
+                FechaCierreCaja    = cierreCaja,
+                PrestamosDirectos  = _prestamosDirectos
             };
 
             _preview = await PrestamosApi.SimularAmortizacionAsync(dto);
@@ -1018,23 +1393,53 @@
             {
                 DateTime ultimaFechaTabla = _preview.FechaUltimoPago;
 
-                // Si la fecha final de descuento no coincide con la última fecha real
-                // de la tabla, se ajusta automáticamente a esa fecha.
-                if (_fechaFinalDescuento.HasValue &&
-                    _fechaFinalDescuento.Value.Date != ultimaFechaTabla.Date)
+                _actualizandoDesdeSimulacion = true;
+                try
                 {
-                    Snackbar.Add(
-                        $"La fecha de vencimiento fue ajustada a la última amortización: {ultimaFechaTabla:dd/MM/yyyy}.",
-                        Severity.Info);
+                    if (!EsCajaDeAhorro && _fechaFinalDescuento.HasValue)
+                    {
+                        bool fechaEsCorteNomina = EsFechaDeNomina(_fechaFinalDescuento.Value);
+
+                        if (fechaEsCorteNomina
+                            && _fechaFinalDescuento.Value.Date != ultimaFechaTabla.Date)
+                        {
+                            // La fecha final coincide con un corte de nómina pero la tabla
+                            // generó una cuota adicional más allá de ella.
+                            // Re-simular pasando la fecha final como cap para que la última
+                            // amortización quede exactamente en ese corte.
+                            dto.FechaCierreCaja = _fechaFinalDescuento.Value;
+                            _preview = await PrestamosApi.SimularAmortizacionAsync(dto);
+                            ultimaFechaTabla = _preview?.FechaUltimoPago ?? ultimaFechaTabla;
+                        }
+                        else if (!fechaEsCorteNomina
+                                 && _fechaFinalDescuento.Value.Date != ultimaFechaTabla.Date)
+                        {
+                            // No es un corte exacto: ajustar la fecha final al resultado real.
+                            Snackbar.Add(
+                                $"La fecha de vencimiento fue ajustada a la última amortización: {ultimaFechaTabla:dd/MM/yyyy}.",
+                                Severity.Info);
+                            _fechaFinalDescuento = ultimaFechaTabla;
+                        }
+                    }
+                    else if (EsCajaDeAhorro
+                             && _fechaFinalDescuento.HasValue
+                             && _fechaFinalDescuento.Value.Date != ultimaFechaTabla.Date)
+                    {
+                        // Caja de Ahorro: sincronizar con el resultado de la tabla.
+                        _fechaFinalDescuento = ultimaFechaTabla;
+                    }
+
+                    // Plazo siempre derivado de la última amortización efectiva.
+                    if (_fechaEntrega.HasValue && _preview is not null)
+                    {
+                        int meses = (int)Math.Ceiling(
+                            (_preview.FechaUltimoPago - _fechaEntrega.Value).TotalDays / 30.4375);
+                        _model.PlazoMeses = Math.Max(1, meses);
+                    }
                 }
-
-                _fechaFinalDescuento = ultimaFechaTabla;
-
-                if (_fechaEntrega.HasValue)
+                finally
                 {
-                    int meses = (int)Math.Ceiling(
-                        (ultimaFechaTabla - _fechaEntrega.Value).TotalDays / 30.4375);
-                    _model.PlazoMeses = Math.Max(1, meses);
+                    _actualizandoDesdeSimulacion = false;
                 }
             }
         }
@@ -1074,28 +1479,48 @@
             return;
         }
 
-        if (_model.MontoAprobado <= 0)
+        // Validar que la solicitud tenga al menos una modalidad con datos
+        if (EsCajaDeAhorro && !_nominaActiva && _prestamosDirectos.Count == 0)
         {
-            Snackbar.Add("El monto solicitado debe ser mayor a cero.", Severity.Warning);
+            Snackbar.Add("Debe incluir al menos un Préstamo Directo o activar el Préstamo Nómina.", Severity.Warning);
             return;
         }
 
-        if (_model.PlazoMeses <= 0)
+        if (_nominaActiva)
         {
-            Snackbar.Add("El plazo debe ser mayor a cero.", Severity.Warning);
-            return;
-        }
+            if (_model.MontoAprobado <= 0)
+            {
+                Snackbar.Add("El monto solicitado debe ser mayor a cero.", Severity.Warning);
+                return;
+            }
 
-        if (_tasaMensual <= 0)
-        {
-            Snackbar.Add("La tasa de interés debe ser mayor a cero.", Severity.Warning);
-            return;
-        }
+            if (_model.PlazoMeses <= 0)
+            {
+                Snackbar.Add("El plazo debe ser mayor a cero.", Severity.Warning);
+                return;
+            }
 
-        if (_preview is null)
-        {
-            Snackbar.Add("Debe calcular la amortización antes de guardar.", Severity.Warning);
-            return;
+            if (!EsCajaDeAhorro)
+            {
+                var errorPlazo = ValidarPlazo(_model.PlazoMeses);
+                if (errorPlazo is not null)
+                {
+                    Snackbar.Add(errorPlazo, Severity.Warning);
+                    return;
+                }
+            }
+
+            if (_tasaMensual <= 0)
+            {
+                Snackbar.Add("La tasa de interés debe ser mayor a cero.", Severity.Warning);
+                return;
+            }
+
+            if (_preview is null)
+            {
+                Snackbar.Add("Debe calcular la amortización antes de guardar.", Severity.Warning);
+                return;
+            }
         }
 
         // Validaciones específicas de Caja de Ahorro
@@ -1111,7 +1536,7 @@
                 return;
             }
 
-            if (_vencimientoManual && _fechaFinalDescuento.HasValue &&
+            if (_fechaFinalDescuento.HasValue &&
                 _fechaFinalDescuento.Value > cierre.Value)
             {
                 Snackbar.Add(
@@ -1139,31 +1564,71 @@
         _saving = true;
         try
         {
-            // Mapear la tabla de amortización
-            _model.Amortizaciones = _preview?.TablaAmortizacion.Select(a => new AmortizacionDto
+            _model.FechaSolicitud = (_fechaSolicitud ?? DateTime.Today).Date;
+            _model.FechaEntrega = (_fechaEntrega ?? DateTime.Today).Date;
+
+            // Mapear la tabla de amortización (solo si el Préstamo Nómina está activo)
+            _model.Amortizaciones = _nominaActiva
+                ? _preview?.TablaAmortizacion.Select(a => new AmortizacionDto
+                {
+                    NumeroPago = a.NumeroPago,
+                    FechaPago = a.FechaPago,
+                    ImportePago = a.ImportePago,
+                    ImporteInteres = a.ImporteInteres,
+                    ImporteCapital = a.ImporteCapital,
+                    PagoExtra = 0,
+                    SaldoFinal = a.SaldoFinal
+                }).ToList() ?? []
+                : [];
+
+            if (!_nominaActiva)
             {
-                NumeroPago = a.NumeroPago,
-                FechaPago = a.FechaPago,
-                ImportePago = a.ImportePago,
-                ImporteInteres = a.ImporteInteres,
-                ImporteCapital = a.ImporteCapital,
-                PagoExtra = 0,
-                SaldoFinal = a.SaldoFinal
-            }).ToList() ?? [];
+                _model.MontoAprobado = 0;
+                _model.TasaInteresMensual = 0;
+
+                // Derivar el plazo desde la fecha de pago mayor de los préstamos directos
+                DateTime? fechaMaxDirecto = _prestamosDirectos.Count > 0
+                    ? _prestamosDirectos.Max(d => d.FechaPago)
+                    : null;
+
+                _model.PlazoMeses = fechaMaxDirecto.HasValue && _fechaEntrega.HasValue
+                    ? Math.Max(1, (int)Math.Ceiling((fechaMaxDirecto.Value - _fechaEntrega.Value).TotalDays / 30.4375))
+                    : 1;
+            }
 
             // Mapear préstamos directos
             _model.PrestamosDirectos = _prestamosDirectos;
 
-            var result = await PrestamosApi.CrearAsync(_model);
-            if (result)
+            bool result;
+            if (_prestamoId > 0)
             {
-                Snackbar.Add("¡Solicitud registrada exitosamente! Será revisada para aprobación.", Severity.Success);
-                _confirmarGuardadoVisible = false;
-                Navigation.NavigateTo("/gestion-solicitudes");
+                // Edición: actualizar la solicitud existente, nunca crear una nueva.
+                result = await PrestamosApi.ActualizarSolicitudAsync(_prestamoId, _model);
+                if (result)
+                {
+                    Snackbar.Add("¡Solicitud actualizada exitosamente!", Severity.Success);
+                    _confirmarGuardadoVisible = false;
+                    Navigation.NavigateTo("/gestion-solicitudes");
+                }
+                else
+                {
+                    Snackbar.Add("Error al actualizar la solicitud.", Severity.Error);
+                }
             }
             else
             {
-                Snackbar.Add("Error al registrar la solicitud.", Severity.Error);
+                // Alta: crear una solicitud nueva.
+                result = await PrestamosApi.CrearAsync(_model);
+                if (result)
+                {
+                    Snackbar.Add("¡Solicitud registrada exitosamente! Será revisada para aprobación.", Severity.Success);
+                    _confirmarGuardadoVisible = false;
+                    Navigation.NavigateTo("/gestion-solicitudes");
+                }
+                else
+                {
+                    Snackbar.Add("Error al registrar la solicitud.", Severity.Error);
+                }
             }
         }
         catch (Exception ex)
@@ -1196,10 +1661,22 @@
         _preview = null;
         _prestamoId = 0;
         _prestamosDirectos = [];
+        _nominaActiva = true;
 
         if (_tiposPago.Count > 0)
             _model.TipoPagoId = _tiposPago[0].TipoPagoId;
 
+        StateHasChanged();
+    }
+
+    /// <summary>Limpia los datos del Préstamo Nómina. Solo disponible cuando la fondeadora es Caja de Ahorro.</summary>
+    private void LimpiarPrestamoNomina()
+    {
+        _model.MontoAprobado = 0;
+        _model.PlazoMeses = 1;
+        _fechaFinalDescuento = null;
+        _preview = null;
+        _nominaActiva = false;
         StateHasChanged();
     }
 
@@ -1208,17 +1685,19 @@
     private void AgregarPrestamoDirecto()
     {
         var fechaBase = _fechaEntrega ?? DateTime.Today;
-        var fechaPago = fechaBase.AddDays(30);
-        var tasaDirecto = EsCajaDeAhorro && _parametros.TasaFijaDirecto.HasValue
-            ? _parametros.TasaFijaDirecto.Value
-            : _model.TasaInteresMensual;
+        // Para Caja de Ahorro: la fecha de pago por defecto es el último día del mes del cierre.
+        // Para otras fondeadoras: fecha de entrega + 30 días.
+        var fechaPago = EsCajaDeAhorro
+            ? (FechaCierreDirectoEfectiva ?? fechaBase.AddDays(30))
+            : fechaBase.AddDays(30);
+        var tasaDirecto = TasaDirectoEfectiva;
         _prestamosDirectos.Add(new PrestamoDirectoCreateDto
         {
-            Descripcion = string.Empty,
+            Descripcion     = string.Empty,
             MontoSolicitado = 0,
-            TasaMensual = tasaDirecto,
-            FechaPago = fechaPago,
-            DiazPlazo = (fechaPago - fechaBase).Days
+            TasaMensual     = tasaDirecto,
+            FechaPago       = fechaPago,
+            DiazPlazo       = Math.Max(1, (fechaPago - fechaBase).Days)
         });
     }
 
@@ -1226,6 +1705,34 @@
     {
         if (index >= 0 && index < _prestamosDirectos.Count)
             _prestamosDirectos.RemoveAt(index);
+    }
+
+    private void OnFechaPagoDirectoChanged(PrestamoDirectoCreateDto prestamo, DateTime? fecha)
+    {
+        if (fecha is null) return;
+
+        DateTime fechaEfectiva = fecha.Value;
+        DateTime fechaMinima = _fechaEntrega ?? DateTime.Today;
+
+        if (fechaEfectiva < fechaMinima)
+        {
+            Snackbar.Add(
+                $"La fecha de pago no puede ser menor a la fecha de entrega ({fechaMinima:dd/MM/yyyy}).",
+                Severity.Warning);
+            fechaEfectiva = fechaMinima;
+        }
+
+        // Para Caja de Ahorro los directos pueden llegar hasta el último día del mes del cierre.
+        if (EsCajaDeAhorro && FechaCierreDirectoEfectiva.HasValue && fechaEfectiva > FechaCierreDirectoEfectiva.Value)
+        {
+            Snackbar.Add(
+                $"La fecha de pago no puede exceder el último día del mes del cierre de caja ({FechaCierreDirectoEfectiva.Value:dd/MM/yyyy}).",
+                Severity.Warning);
+            fechaEfectiva = FechaCierreDirectoEfectiva.Value;
+        }
+
+        prestamo.FechaPago = fechaEfectiva;
+        prestamo.DiazPlazo = Math.Max(1, (fechaEfectiva - fechaMinima).Days);
     }
 
     // ── Intercepción de Navegación ──

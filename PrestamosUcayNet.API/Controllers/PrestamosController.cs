@@ -161,6 +161,36 @@ public class PrestamosController : ControllerBase
             return BadRequest(ex.Message);
         }
     }
+
+    [HttpPost("{id}/devolver-evaluacion")]
+    public async Task<IActionResult> DevolverAEvaluacion(int id)
+    {
+        try
+        {
+            var result = await _prestamosService.DevolverAEvaluacionAsync(id);
+            if (!result) return BadRequest("No se pudo devolver la solicitud a evaluación.");
+            return Ok();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    [HttpPut("{id}/solicitud")]
+    public async Task<IActionResult> ActualizarSolicitud(int id, PrestamoCreateDto dto)
+    {
+        try
+        {
+            var result = await _prestamosService.ActualizarSolicitudAsync(id, dto);
+            if (!result) return NotFound("Solicitud no encontrada.");
+            return Ok();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
 }
 
 public class AprobarPrestamoRequestDto

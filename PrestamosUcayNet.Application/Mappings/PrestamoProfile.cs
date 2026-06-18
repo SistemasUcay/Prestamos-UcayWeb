@@ -18,10 +18,18 @@ public class PrestamoProfile : Profile
                     : "N/A"))
             .ForMember(d => d.NombreFondeadora, o => o.MapFrom(s =>
                 s.FuenteFondeo != null ? s.FuenteFondeo.RazonSocial : "N/A"))
+            .ForMember(d => d.NombreCortoFondeadora, o => o.MapFrom(s =>
+                s.FuenteFondeo != null
+                    ? (s.FuenteFondeo.NombreCorto ?? s.FuenteFondeo.RazonSocial)
+                    : "N/A"))
             .ForMember(d => d.TipoPrestamoDescripcion, o => o.MapFrom(s =>
                 s.TipoPrestamo != null ? s.TipoPrestamo.Descripcion : "N/A"))
             .ForMember(d => d.TipoPagoDescripcion, o => o.MapFrom(s =>
-                s.TipoPago != null ? s.TipoPago.Descripcion : "N/A"));
+                s.TipoPago != null ? s.TipoPago.Descripcion : "N/A"))
+            .ForMember(d => d.TotalPrestamosDirectos, o => o.MapFrom(s =>
+                s.PrestamosDirectos != null ? s.PrestamosDirectos.Sum(pd => pd.MontoSolicitado) : 0m))
+            .ForMember(d => d.FinalDescuento, o => o.MapFrom(s => s.FinalDescuento))
+            .ForMember(d => d.PrestamosDirectos, o => o.MapFrom(s => s.PrestamosDirectos));
 
         CreateMap<Prestamo, PrestamoDetalleDto>()
             .ForMember(d => d.Id, o => o.MapFrom(s => s.PrestamoId))
@@ -50,6 +58,7 @@ public class PrestamoProfile : Profile
             .ForMember(d => d.PagoExtra, o => o.MapFrom(s => s.PagoExtraCapital))
             .ForMember(d => d.Pagado, o => o.MapFrom(s => s.StatusPago));
 
-        CreateMap<PrestamoDirecto, PrestamoDirectoDto>();
+        CreateMap<PrestamoDirecto, PrestamoDirectoDto>()
+            .ForMember(d => d.FechaPagoReal, o => o.MapFrom(s => s.FechaPagoReal));
     }
 }

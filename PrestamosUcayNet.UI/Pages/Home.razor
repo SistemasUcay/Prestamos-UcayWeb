@@ -1,7 +1,518 @@
 @page "/"
+@using Microsoft.AspNetCore.Authorization
+@using PrestamosUcayNet.Application.DTOs
+@using PrestamosUcayNet.UI.Services
+@using MudBlazor
+@attribute [Authorize]
+@inject DashboardApiService DashboardService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Dashboard - Gestión de Préstamos</PageTitle>
 
-<h1>Hello, world!</h1>
+<style>
+    .kpi-card {
+        border-radius: 16px !important;
+        color: white !important;
+        position: relative;
+        overflow: hidden;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        height: 140px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        border: none !important;
+    }
+    .kpi-card:hover {
+        transform: translateY(-6px);
+        box-shadow: 0 16px 32px rgba(0,0,0,0.2) !important;
+        cursor: pointer;
+    }
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        width: 150px;
+        height: 150px;
+        background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%);
+        border-radius: 50%;
+        top: -40px;
+        right: -40px;
+        pointer-events: none;
+    }
+    .glass-panel {
+        background-color: var(--mud-palette-surface);
+        background-image: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 100%);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid var(--mud-palette-lines-default) !important;
+        border-radius: 20px !important;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05) !important;
+        transition: box-shadow 0.3s ease;
+    }
+    .glass-panel:hover {
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08) !important;
+    }
+    .animate-fade-in {
+        animation: fadeIn 0.6s ease-out forwards;
+    }
+    .kpi-icon {
+        position: absolute;
+        right: 16px;
+        bottom: 16px;
+        font-size: 3.5rem !important;
+        opacity: 0.15;
+        transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+    .kpi-card:hover .kpi-icon {
+        transform: scale(1.1) rotate(-5deg);
+        opacity: 0.3;
+    }
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
 
-Welcome to your new app.
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6 mb-8 animate-fade-in">
+    @* Encabezado del Dashboard *@
+    <div class="d-flex align-center justify-space-between mb-4">
+        <div>
+            <MudText Typo="Typo.h4" Style="font-weight: 700;">Dashboard</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">Resumen operativo de préstamos, solicitudes y cartera.</MudText>
+        </div>
+        <MudIconButton Icon="@Icons.Material.Filled.Refresh" Color="Color.Primary" Size="Size.Large" OnClick="CargarDashboard" Disabled="@_loading" title="Actualizar datos" />
+    </div>
+
+
+    @if (_loading)
+    {
+        @* Skeleton loader premium *@
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="3">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="140px" Width="100%" Style="border-radius:16px;" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="140px" Width="100%" Style="border-radius:16px;" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="140px" Width="100%" Style="border-radius:16px;" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="140px" Width="100%" Style="border-radius:16px;" />
+            </MudItem>
+            <MudItem xs="12" md="8">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="380px" Width="100%" Style="border-radius:16px;" />
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="380px" Width="100%" Style="border-radius:16px;" />
+            </MudItem>
+        </MudGrid>
+    }
+    else if (_dashboard == null)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Style="border-radius:12px;">
+            No se pudo obtener información del Dashboard. Compruebe la conexión con el servidor.
+        </MudAlert>
+    }
+    else
+    {
+        <MudPaper Class="glass-panel pa-4 mb-4">
+            <MudGrid>
+                <MudItem xs="12" md="8">
+                    <MudText Typo="Typo.h6" Style="font-weight: 600;">Resumen rápido</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Vista compacta de la situación actual de la cartera.</MudText>
+                </MudItem>
+                <MudItem xs="12" md="4" Class="d-flex justify-md-end flex-wrap gap-2">
+                    <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled">Activos: @_dashboard.PrestamosActivosCount</MudChip>
+                    <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled">En evaluación: @_dashboard.SolicitudesTramiteCount</MudChip>
+                    <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled">Pend. entrega: @_dashboard.PendientesEntrega.Count</MudChip>
+                    <MudChip T="string" Color="Color.Info" Variant="Variant.Filled">Top deudores: @_dashboard.TopEmpleados.Count</MudChip>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudGrid Spacing="3">
+            @* ── KPI CARDS ── *@
+
+            @* Total Colocado *@
+            <MudItem xs="12" sm="6" md="3">
+                <MudPaper Class="kpi-card pa-4" Style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);" @onclick="@(() => Navigation.NavigateTo("gestion-prestamos"))">
+                    <div>
+                        <MudText Typo="Typo.subtitle2" Style="font-weight: 500; opacity: 0.85;">TOTAL COLOCADO</MudText>
+                        <MudText Typo="Typo.h4" Style="font-weight: 800;" Class="mt-1">@_dashboard.TotalColocado.ToString("C0")</MudText>
+                    </div>
+                    <div class="d-flex align-center justify-space-between mt-auto">
+                        <MudText Typo="Typo.caption" Style="opacity: 0.9;">@_dashboard.PrestamosActivosCount Préstamos Activos</MudText>
+                        <MudIcon Icon="@Icons.Material.Filled.AccountBalanceWallet" Class="kpi-icon" />
+                    </div>
+                </MudPaper>
+            </MudItem>
+
+            @* Saldo Vigente *@
+            <MudItem xs="12" sm="6" md="3">
+                <MudPaper Class="kpi-card pa-4" Style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);" @onclick="@(() => Navigation.NavigateTo("gestion-prestamos"))">
+                    <div>
+                        <MudText Typo="Typo.subtitle2" Style="font-weight: 500; opacity: 0.85;">SALDO VIGENTE</MudText>
+                        <MudText Typo="Typo.h4" Style="font-weight: 800;" Class="mt-1">@_dashboard.SaldoVigente.ToString("C0")</MudText>
+                    </div>
+                    <div class="d-flex align-center justify-space-between mt-auto">
+                        <MudText Typo="Typo.caption" Style="opacity: 0.9;">Cartera al corriente</MudText>
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="kpi-icon" />
+                    </div>
+                </MudPaper>
+            </MudItem>
+
+            @* Saldo Vencido *@
+            <MudItem xs="12" sm="6" md="3">
+                <MudPaper Class="kpi-card pa-4" Style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);" @onclick="@(() => Navigation.NavigateTo("gestion-prestamos"))">
+                    <div>
+                        <MudText Typo="Typo.subtitle2" Style="font-weight: 500; opacity: 0.85;">SALDO VENCIDO</MudText>
+                        <MudText Typo="Typo.h4" Style="font-weight: 800;" Class="mt-1">@_dashboard.SaldoVencido.ToString("C0")</MudText>
+                    </div>
+                    <div class="d-flex align-center justify-space-between mt-auto">
+                        <MudText Typo="Typo.caption" Style="opacity: 0.9;">Cuotas fuera de fecha</MudText>
+                        <MudIcon Icon="@Icons.Material.Filled.Warning" Class="kpi-icon" />
+                    </div>
+                </MudPaper>
+            </MudItem>
+
+            @* Tasa de Morosidad & Recuperación *@
+            <MudItem xs="12" sm="6" md="3">
+                <MudPaper Class="kpi-card pa-4" Style="background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);">
+                    <div>
+                        <div class="d-flex justify-space-between align-center">
+                            <MudText Typo="Typo.subtitle2" Style="font-weight: 500; opacity: 0.85;">ÍNDICE MOROSIDAD</MudText>
+                            <MudText Typo="Typo.subtitle2" Style="font-weight: 500; opacity: 0.85;">RECUPERACIÓN</MudText>
+                        </div>
+                        <div class="d-flex justify-space-between align-center mt-1">
+                            <MudText Typo="Typo.h4" Style="font-weight: 800; color: #ffe4e6;">@_dashboard.TasaMorosidad.ToString("N1")%</MudText>
+                            <MudText Typo="Typo.h5" Style="font-weight: 700;">@_dashboard.RecuperacionMensual.ToString("C0")</MudText>
+                        </div>
+                    </div>
+                    <div class="d-flex align-center justify-space-between mt-auto">
+                        <MudText Typo="Typo.caption" Style="opacity: 0.9;">@_dashboard.SolicitudesTramiteCount Solicitudes en Evaluación</MudText>
+                        <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Class="kpi-icon" />
+                    </div>
+                </MudPaper>
+            </MudItem>
+
+
+            @* ── TABLAS DE DETALLE ── *@
+
+            @* Estado de Cartera por Fondeadora *@
+            <MudItem xs="12" md="12" lg="12">
+                <MudPaper Class="glass-panel pa-5" Style="min-height: 380px;">
+                    <MudText Typo="Typo.h6" Style="font-weight: 600;" Class="mb-3">Estado de Cartera por Fondeadora</MudText>
+                    <MudGrid>
+                        <MudItem xs="12" md="4" Class="d-flex flex-column justify-center align-center">
+                            @if (_dashboard.EstadoCarteraFondeadora?.Any() == true)
+                            {
+                                <MudChart T="double" ChartType="ChartType.Donut" 
+                                          Width="250px" Height="250px" 
+                                          ChartSeries="@_chartSeries"
+                                          ChartLabels="@_chartLabels"
+                                          LegendPosition="Position.Bottom">
+                                </MudChart>
+                                <MudText Typo="Typo.subtitle2" Class="mt-2" Style="font-weight: 600;">Total Colocado por Fondeadora</MudText>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">Sin datos para graficar</MudText>
+                            }
+                        </MudItem>
+                        <MudItem xs="12" md="8">
+                            <MudTable Items="@_dashboard.EstadoCarteraFondeadora" Dense="true" Hover="true" Bordered="false" Striped="false" Elevation="0" Style="background: transparent;">
+                                <HeaderContent>
+                                    <MudTh><MudTableSortLabel SortBy="new Func<EstadoCarteraFondeadoraDto, object>(x => x.NombreCorto)" Style="font-weight:600;">Fondeadora</MudTableSortLabel></MudTh>
+                                    <MudTh Style="text-align:right;"><MudTableSortLabel SortBy="new Func<EstadoCarteraFondeadoraDto, object>(x => x.TotalColocado)" Style="font-weight:600;">Total Colocado</MudTableSortLabel></MudTh>
+                                    <MudTh Style="text-align:right;"><MudTableSortLabel SortBy="new Func<EstadoCarteraFondeadoraDto, object>(x => x.SaldoVigente)" Style="font-weight:600;">Saldo Vigente</MudTableSortLabel></MudTh>
+                                    <MudTh Style="text-align:right;"><MudTableSortLabel SortBy="new Func<EstadoCarteraFondeadoraDto, object>(x => x.SaldoVencido)" Style="font-weight:600;">Saldo Vencido</MudTableSortLabel></MudTh>
+                                    <MudTh Style="text-align:center;"><MudTableSortLabel SortBy="new Func<EstadoCarteraFondeadoraDto, object>(x => x.TasaMorosidad)" Style="font-weight:600;">Morosidad</MudTableSortLabel></MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd DataLabel="Fondeadora">
+                                        <MudTooltip Text="@context.NombreFondeadora">
+                                            <MudText Typo="Typo.body2" Style="font-weight: 500;">@context.NombreCorto</MudText>
+                                        </MudTooltip>
+                                    </MudTd>
+                                    <MudTd DataLabel="Total Colocado" Style="text-align:right;">@context.TotalColocado.ToString("C2")</MudTd>
+                                    <MudTd DataLabel="Saldo Vigente" Style="text-align:right;" Class="green-text">@context.SaldoVigente.ToString("C2")</MudTd>
+                                    <MudTd DataLabel="Saldo Vencido" Style="text-align:right;" Class="red-text">@context.SaldoVencido.ToString("C2")</MudTd>
+                                    <MudTd DataLabel="Morosidad" Style="text-align:center;">
+                                        <div class="d-flex align-center justify-center">
+                                            <MudProgressLinear Color="@(context.TasaMorosidad > 5 ? Color.Error : context.TasaMorosidad > 2 ? Color.Warning : Color.Success)"
+                                                               Value="@((double)context.TasaMorosidad)" Max="100" Size="Size.Medium" Style="width: 50px; border-radius: 4px;" Class="mr-2" />
+                                            <MudText Typo="Typo.caption" Style="font-weight: 600;">@context.TasaMorosidad.ToString("N1")%</MudText>
+                                        </div>
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            </MudItem>
+
+            @* Top 10 Empleados con Mayor Saldo Pendiente *@
+            <MudItem xs="12" md="6">
+                <MudPaper Class="glass-panel pa-5" Style="min-height: 380px;">
+                    <MudText Typo="Typo.h6" Style="font-weight: 600;" Class="mb-3">Top 10 Deudores (Colaboradores)</MudText>
+                    <MudTable Items="@_dashboard.TopEmpleados" Dense="true" Hover="true" Bordered="false" Striped="false" Elevation="0" Style="background: transparent;">
+                        <HeaderContent>
+                            <MudTh Style="font-weight:600; width:50px;"></MudTh>
+                            <MudTh><MudTableSortLabel SortBy="new Func<TopEmpleadoSaldoDto, object>(x => x.NombreCompleto)" Style="font-weight:600;">Colaborador</MudTableSortLabel></MudTh>
+                            <MudTh><MudTableSortLabel SortBy="new Func<TopEmpleadoSaldoDto, object>(x => x.NombreEmpresa)" Style="font-weight:600;">Empresa</MudTableSortLabel></MudTh>
+                            <MudTh Style="text-align:right;"><MudTableSortLabel SortBy="new Func<TopEmpleadoSaldoDto, object>(x => x.SaldoPendiente)" Style="font-weight:600;">Saldo Pendiente</MudTableSortLabel></MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>
+                                <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small">
+                                    @context.NombreCompleto.Substring(0, 1)
+                                </MudAvatar>
+                            </MudTd>
+                            <MudTd DataLabel="Colaborador">
+                                <MudText Typo="Typo.body2" Style="font-weight: 500;">@context.NombreCompleto</MudText>
+                            </MudTd>
+                            <MudTd DataLabel="Empresa">@context.NombreEmpresa</MudTd>
+                            <MudTd DataLabel="Saldo Pendiente" Style="text-align:right; font-weight: 600;" Class="red-text">@context.SaldoPendiente.ToString("C2")</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudPaper>
+            </MudItem>
+
+            @* Solicitudes Recientes en Evaluación *@
+            <MudItem xs="12">
+                <MudPaper Class="glass-panel pa-5">
+                    <div class="d-flex justify-space-between align-center mb-4">
+                        <div>
+                            <MudText Typo="Typo.h6" Style="font-weight: 600;">Solicitudes Recientes en Evaluación</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Requieren aprobación o dictamen por el área correspondiente</MudText>
+                        </div>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="@(() => Navigation.NavigateTo("gestion-solicitudes"))" EndIcon="@Icons.Material.Filled.ArrowForward" Style="border-radius: 8px;">
+                            Ver Todas
+                        </MudButton>
+                    </div>
+
+                    @if (_dashboard.SolicitudesRecientes?.Count > 0)
+                    {
+                        <MudTable Items="@_dashboard.SolicitudesRecientes" Dense="true" Hover="true" Bordered="false" Striped="false" Elevation="0" Style="background: transparent;">
+                            <HeaderContent>
+                                <MudTh><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.PrestamoId)" Style="font-weight:600;">Folio / ID</MudTableSortLabel></MudTh>
+                                <MudTh><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.FechaSolicitud)" Style="font-weight:600;">Fecha Solicitud</MudTableSortLabel></MudTh>
+                                <MudTh><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.NombreEmpleado)" Style="font-weight:600;">Empleado</MudTableSortLabel></MudTh>
+                                <MudTh><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.NombreFondeadora)" Style="font-weight:600;">Fondeadora</MudTableSortLabel></MudTh>
+                                <MudTh Style="text-align:right;"><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.MontoAprobado)" Style="font-weight:600;">Monto Solicitado</MudTableSortLabel></MudTh>
+                                <MudTh Style="text-align:center;"><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.Estado)" Style="font-weight:600;">Estado</MudTableSortLabel></MudTh>
+                                <MudTh Style="font-weight:600; text-align:center;">Acción</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Folio/ID">
+                                    <MudText Typo="Typo.body2" Style="font-weight: 600;">
+                                        @(string.IsNullOrEmpty(context.Folio) ? $"#{context.PrestamoId}" : context.Folio)
+                                    </MudText>
+                                </MudTd>
+                                <MudTd DataLabel="Fecha Solicitud">@context.FechaSolicitud.ToString("dd/MM/yyyy")</MudTd>
+                                <MudTd DataLabel="Empleado">@context.NombreEmpleado</MudTd>
+                                <MudTd DataLabel="Fondeadora">@context.NombreFondeadora</MudTd>
+                                <MudTd DataLabel="Monto Solicitado" Style="text-align:right; font-weight: 600;">@context.MontoAprobado.ToString("C2")</MudTd>
+                                <MudTd DataLabel="Estado" Style="text-align:center;">
+                                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled">Evaluación</MudChip>
+                                </MudTd>
+                                <MudTd Style="text-align:center;">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                                   OnClick="@(() => Navigation.NavigateTo($"/captura-prestamo/{context.PrestamoId}"))" title="Evaluar / Editar" />
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                    else
+                    {
+                        <div class="d-flex flex-column align-center justify-center pa-8 text-center">
+                            <MudIcon Icon="@Icons.Material.Filled.Inbox" Style="font-size: 3rem;" Color="Color.Default" />
+                            <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mt-2">No hay solicitudes pendientes de evaluación.</MudText>
+                        </div>
+                    }
+                </MudPaper>
+            </MudItem>
+
+            @* Préstamos Pendientes de Entrega *@
+            <MudItem xs="12">
+                <MudPaper Class="glass-panel pa-5">
+                    <div class="d-flex justify-space-between align-center mb-4">
+                        <div>
+                            <MudText Typo="Typo.h6" Style="font-weight: 600;">
+                                <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Class="mr-1" Style="vertical-align: middle;" />
+                                Préstamos Pendientes de Entrega
+                            </MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Préstamos aprobados que aún no han sido entregados al colaborador</MudText>
+                        </div>
+                        <div class="d-flex align-center gap-2">
+                            @if (_dashboard.PendientesEntrega?.Count > 0)
+                            {
+                                <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small">@_dashboard.PendientesEntrega.Count pendiente(s)</MudChip>
+                            }
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="@(() => Navigation.NavigateTo("gestion-prestamos"))" EndIcon="@Icons.Material.Filled.ArrowForward" Style="border-radius: 8px;">
+                                Gestionar
+                            </MudButton>
+                        </div>
+                    </div>
+
+                    @if (_dashboard.PendientesEntrega?.Count > 0)
+                    {
+                        <MudTable Items="@_dashboard.PendientesEntrega" Dense="true" Hover="true" Bordered="false" Striped="false" Elevation="0" Style="background: transparent;">
+                            <HeaderContent>
+                                <MudTh><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.PrestamoId)" Style="font-weight:600;">ID</MudTableSortLabel></MudTh>
+                                <MudTh><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.FechaSolicitud)" Style="font-weight:600;">F. Solicitud</MudTableSortLabel></MudTh>
+                                <MudTh><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.FechaDeposito)" Style="font-weight:600;">F. Entrega Prog.</MudTableSortLabel></MudTh>
+                                <MudTh><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.NombreEmpleado)" Style="font-weight:600;">Colaborador</MudTableSortLabel></MudTh>
+                                <MudTh><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.NombreCortoFondeadora)" Style="font-weight:600;">Fondeadora</MudTableSortLabel></MudTh>
+                                <MudTh Style="text-align:right;"><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.MontoAprobado)" Style="font-weight:600;">Monto Nómina</MudTableSortLabel></MudTh>
+                                <MudTh Style="text-align:right;"><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.TotalGeneral)" Style="font-weight:600;">Total General</MudTableSortLabel></MudTh>
+                                <MudTh Style="text-align:center;">Acción</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="ID">
+                                    <MudText Typo="Typo.body2" Style="font-weight: 600;">
+                                        @(string.IsNullOrEmpty(context.Folio) ? $"#{context.PrestamoId}" : context.Folio)
+                                    </MudText>
+                                </MudTd>
+                                <MudTd DataLabel="F. Solicitud">@context.FechaSolicitud.ToString("dd/MM/yyyy")</MudTd>
+                                <MudTd DataLabel="F. Entrega Prog.">
+                                    @if (context.FechaDeposito.HasValue)
+                                    {
+                                        <MudText Typo="Typo.body2">@context.FechaDeposito.Value.ToString("dd/MM/yyyy")</MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">—</MudText>
+                                    }
+                                </MudTd>
+                                <MudTd DataLabel="Colaborador">
+                                    <MudText Typo="Typo.body2" Style="font-weight: 500;">@context.NombreEmpleado</MudText>
+                                </MudTd>
+                                <MudTd DataLabel="Fondeadora">@context.NombreCortoFondeadora</MudTd>
+                                <MudTd DataLabel="Monto Nómina" Style="text-align:right; font-weight: 600;">@context.MontoAprobado.ToString("C2")</MudTd>
+                                <MudTd DataLabel="Total General" Style="text-align:right; font-weight: 700; color: var(--mud-palette-primary);">@context.TotalGeneral.ToString("C2")</MudTd>
+                                <MudTd Style="text-align:center;">
+                                    <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small"
+                                                   OnClick="@(() => Navigation.NavigateTo("gestion-prestamos"))" Title="Activar entrega" />
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                    else
+                    {
+                        <div class="d-flex flex-column align-center justify-center pa-8 text-center">
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircleOutline" Style="font-size: 3rem;" Color="Color.Success" />
+                            <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mt-2">No hay préstamos pendientes de entrega.</MudText>
+                        </div>
+                    }
+                </MudPaper>
+            </MudItem>
+
+            @* Préstamos Cancelados o Rechazados *@
+            <MudItem xs="12">
+                <MudPaper Class="glass-panel pa-5">
+                    <div class="d-flex justify-space-between align-center mb-4">
+                        <div>
+                            <MudText Typo="Typo.h6" Style="font-weight: 600;">Préstamos Cancelados o Rechazados</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Histórico reciente de solicitudes no colocadas</MudText>
+                        </div>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="@(() => Navigation.NavigateTo("gestion-solicitudes"))" EndIcon="@Icons.Material.Filled.ArrowForward" Style="border-radius: 8px;">
+                            Ver Gestión
+                        </MudButton>
+                    </div>
+
+                    @if (_dashboard.PrestamosCanceladosRechazados?.Count > 0)
+                    {
+                        <MudTable Items="@_dashboard.PrestamosCanceladosRechazados" Dense="true" Hover="true" Bordered="false" Striped="false" Elevation="0" Style="background: transparent;">
+                            <HeaderContent>
+                                <MudTh><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.PrestamoId)" Style="font-weight:600;">Folio / ID</MudTableSortLabel></MudTh>
+                                <MudTh><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.FechaSolicitud)" Style="font-weight:600;">Fecha Solicitud</MudTableSortLabel></MudTh>
+                                <MudTh><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.NombreEmpleado)" Style="font-weight:600;">Empleado</MudTableSortLabel></MudTh>
+                                <MudTh><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.NombreFondeadora)" Style="font-weight:600;">Fondeadora</MudTableSortLabel></MudTh>
+                                <MudTh Style="text-align:right;"><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.MontoAprobado)" Style="font-weight:600;">Monto</MudTableSortLabel></MudTh>
+                                <MudTh Style="text-align:center;"><MudTableSortLabel SortBy="new Func<PrestamoListDto, object>(x => x.Estado)" Style="font-weight:600;">Estado</MudTableSortLabel></MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Folio/ID">@(string.IsNullOrEmpty(context.Folio) ? $"#{context.PrestamoId}" : context.Folio)</MudTd>
+                                <MudTd DataLabel="Fecha">@context.FechaSolicitud.ToString("dd/MM/yyyy")</MudTd>
+                                <MudTd DataLabel="Empleado">@context.NombreEmpleado</MudTd>
+                                <MudTd DataLabel="Fondeadora">@context.NombreFondeadora</MudTd>
+                                <MudTd DataLabel="Monto" Style="text-align:right; font-weight:600;">@context.MontoAprobado.ToString("C2")</MudTd>
+                                <MudTd DataLabel="Estado" Style="text-align:center;">
+                                    @if (context.Estado == "C")
+                                    {
+                                        <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled">Cancelado</MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudChip T="string" Color="Color.Dark" Size="Size.Small" Variant="Variant.Filled">Rechazado</MudChip>
+                                    }
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                    else
+                    {
+                        <div class="d-flex flex-column align-center justify-center pa-8 text-center">
+                            <MudIcon Icon="@Icons.Material.Filled.TaskAlt" Style="font-size: 3rem;" Color="Color.Success" />
+                            <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mt-2">Sin préstamos cancelados o rechazados recientes.</MudText>
+                        </div>
+                    }
+                </MudPaper>
+            </MudItem>
+
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    private DashboardDto? _dashboard;
+    private bool _loading = true;
+    private List<ChartSeries<double>> _chartSeries = new();
+    private string[] _chartLabels = Array.Empty<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarDashboard();
+    }
+
+    private async Task CargarDashboard()
+    {
+        _loading = true;
+        StateHasChanged();
+        try
+        {
+            _dashboard = await DashboardService.GetDashboardDataAsync();
+
+            // Preparar datos para el gráfico de dona
+            if (_dashboard?.EstadoCarteraFondeadora?.Any() == true)
+            {
+                _chartLabels = _dashboard.EstadoCarteraFondeadora
+                    .Select(x => x.NombreCorto)
+                    .ToArray();
+
+                _chartSeries = new List<ChartSeries<double>>
+                {
+                    new ChartSeries<double>
+                    {
+                        Name = "Total Colocado",
+                        Data = _dashboard.EstadoCarteraFondeadora
+                            .Select(x => (double)x.TotalColocado)
+                            .ToArray()
+                    }
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Error al cargar datos del Dashboard: " + ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+}

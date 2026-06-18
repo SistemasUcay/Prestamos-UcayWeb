@@ -67,7 +67,18 @@ public interface IPrestamosService
     Task<bool> CancelarSolicitudAsync(int prestamoId, string notas);
 
     /// <summary>
+    /// Devuelve una solicitud pendiente de entrega al estado en evaluación
+    /// </summary>
+    Task<bool> DevolverAEvaluacionAsync(int prestamoId);
+
+    /// <summary>
     /// Simula la tabla de amortización para previsualización sin persistir
     /// </summary>
     AmortizacionPreviewResultDto SimularAmortizacion(SimularAmortizacionDto dto);
+
+    /// <summary>
+    /// Actualiza una solicitud existente (estado E) reemplazando todos sus datos,
+    /// amortizaciones y préstamos directos. Nunca crea un registro nuevo.
+    /// </summary>
+    Task<bool> ActualizarSolicitudAsync(int prestamoId, PrestamoCreateDto dto);
 }

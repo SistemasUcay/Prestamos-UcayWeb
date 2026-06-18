@@ -22,15 +22,18 @@
                     @context.User.Identity?.Name
                 </MudChip>
 
-                <MudToggleIconButton @bind-Toggled="@_isDarkMode"
-                    Icon="@Icons.Material.Filled.DarkMode"
-                    ToggledIcon="@Icons.Material.Filled.LightMode"
-                    Color="Color.Inherit"
-                    ToggledColor="Color.Inherit"
-                    Title="Modo oscuro" ToggledTitle="Modo claro" />
+                <MudTooltip Text="@(_isDarkMode ? "Modo claro" : "Modo oscuro")">
+                    <MudToggleIconButton @bind-Toggled="@_isDarkMode"
+                        Icon="@Icons.Material.Filled.DarkMode"
+                        ToggledIcon="@Icons.Material.Filled.LightMode"
+                        Color="Color.Inherit"
+                        ToggledColor="Color.Inherit" />
+                </MudTooltip>
 
-                <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" Edge="Edge.End"
-                    OnClick="LogoutAsync" Title="Cerrar sesión" />
+                <MudTooltip Text="Cerrar sesión">
+                    <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" Edge="Edge.End"
+                        OnClick="LogoutAsync" />
+                </MudTooltip>
             </MudAppBar>
 
             <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
@@ -90,15 +93,27 @@
             DrawerBackground = "#111827",
             DrawerText = "#F3F4F6",
             DrawerIcon = "#10B981",
-            Surface = "#1F2937",
+            Surface = "#1E293B",
             Success = "#10B981",
             Warning = "#FBBF24",
             Error = "#F87171",
             Info = "#60A5FA",
-            TextPrimary = "#FFFFFF",
-            TextSecondary = "#9CA3AF",
+            TextPrimary = "#F1F5F9",
+            TextSecondary = "#94A3B8",
             ActionDefault = "#10B981",
-            PrimaryContrastText = "#FFFFFF"
+            PrimaryContrastText = "#FFFFFF",
+            SecondaryContrastText = "#1E293B",
+            TertiaryContrastText = "#FFFFFF",
+            LinesDefault = "rgba(148,163,184,0.2)",
+            LinesInputs = "rgba(148,163,184,0.3)",
+            TableLines = "rgba(148,163,184,0.15)",
+            TableStriped = "rgba(148,163,184,0.04)",
+            TableHover = "rgba(16,185,129,0.08)",
+            Divider = "rgba(148,163,184,0.15)",
+            DividerLight = "rgba(148,163,184,0.08)",
+            TextDisabled = "rgba(148,163,184,0.38)",
+            Dark = "#334155",
+            DarkContrastText = "#F1F5F9"
         },
         Typography = new Typography
         {

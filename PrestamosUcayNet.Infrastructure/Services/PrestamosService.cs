@@ -34,6 +34,16 @@ public class PrestamosService : IPrestamosService
         var empleado = await _context.Empleados.FindAsync(dto.EmpleadoId)
             ?? throw new InvalidOperationException("El empleado no existe.");
 
+        // Validación de negocio: la solicitud debe tener al menos una modalidad válida.
+        bool tieneNomina    = dto.MontoAprobado > 0;
+        bool tieneDirectos  = dto.PrestamosDirectos?.Count > 0;
+
+        if (!tieneNomina && !tieneDirectos)
+            throw new InvalidOperationException("La solicitud debe incluir al menos un Préstamo Nómina o un Préstamo Directo.");
+
+        if (tieneNomina && (dto.PlazoMeses <= 0 || dto.TasaInteresMensual <= 0))
+            throw new InvalidOperationException("El Préstamo Nómina requiere plazo y tasa de interés mayores a cero.");
+
         // Calcular totales desde las amortizaciones enviadas
         decimal totalPagar = dto.Amortizaciones.Sum(a => a.ImportePago);
         decimal totalIntereses = dto.Amortizaciones.Sum(a => a.ImporteInteres);
@@ -112,8 +122,8 @@ public class PrestamosService : IPrestamosService
                 TasaMensual = pd.TasaMensual,
                 FechaPago = pd.FechaPago,
                 DiazPlazo = pd.DiazPlazo,
-                MontoIntereses = Math.Round(pd.MontoSolicitado * pd.TasaMensual * (pd.DiazPlazo / 30m), 2),
-                TotalCapitalInteres = pd.MontoSolicitado + Math.Round(pd.MontoSolicitado * pd.TasaMensual * (pd.DiazPlazo / 30m), 2)
+                MontoIntereses = Math.Round(pd.MontoSolicitado * (pd.TasaMensual / 100m) * (pd.DiazPlazo / 30m), 2),
+                TotalCapitalInteres = pd.MontoSolicitado + Math.Round(pd.MontoSolicitado * (pd.TasaMensual / 100m) * (pd.DiazPlazo / 30m), 2)
             }).ToList();
 
             _context.PrestamosDirectos.AddRange(prestamosDirectos);
@@ -138,6 +148,7 @@ public class PrestamosService : IPrestamosService
     public async Task<List<PrestamoListDto>> ListarTodosAsync()
     {
         return await QueryConNavegacion()
+            .AsSplitQuery()
             .OrderByDescending(p => p.FechaAprobado)
             .ProjectTo<PrestamoListDto>(_mapper.ConfigurationProvider)
             .ToListAsync();
@@ -147,6 +158,7 @@ public class PrestamosService : IPrestamosService
     public async Task<List<PrestamoListDto>> ListarPorEstadoAsync(string estado)
     {
         return await QueryConNavegacion()
+            .AsSplitQuery()
             .Where(p => p.Estado == estado)
             .OrderByDescending(p => p.FechaAprobado)
             .ProjectTo<PrestamoListDto>(_mapper.ConfigurationProvider)
@@ -157,6 +169,7 @@ public class PrestamosService : IPrestamosService
     public async Task<List<PrestamoListDto>> ListarPorEmpleadoAsync(int empleadoId)
     {
         return await QueryConNavegacion()
+            .AsSplitQuery()
             .Where(p => p.EmpleadoId == empleadoId)
             .OrderByDescending(p => p.FechaAprobado)
             .ProjectTo<PrestamoListDto>(_mapper.ConfigurationProvider)
@@ -166,29 +179,19 @@ public class PrestamosService : IPrestamosService
     /// <inheritdoc />
     public async Task<bool> ActivarPrestamoAsync(ActivarPrestamoDto dto)
     {
-        var prestamo = await _context.Prestamos
-            .Include(p => p.Empleado)
-            .FirstOrDefaultAsync(p => p.PrestamoId == dto.PrestamoId);
+        var prestamo = await _context.Prestamos.FindAsync(dto.PrestamoId);
 
-        if (prestamo is null || prestamo.Estado != "E")
-            throw new InvalidOperationException("El préstamo no está en evaluación para ser activado.");
+        if (prestamo is null)
+            throw new InvalidOperationException("El préstamo no existe.");
 
-        prestamo.Estado = "A"; // Activo
-        prestamo.FechaDeposito = dto.FechaEntrega;
-        prestamo.MetodoEntrega = dto.MetodoEntrega;
-        prestamo.ReferenciaBancaria = dto.Referencia;
+        if (prestamo.Estado != "T")
+            throw new InvalidOperationException("Solo se pueden activar préstamos en estado 'Pendiente de Entrega'.");
 
-        if (!string.IsNullOrEmpty(dto.Folio))
-            prestamo.Folio = dto.Folio;
+        // Activación operativa: únicamente cambia el estado.
+        // No se deben modificar datos de la solicitud ni regenerar tabla de amortización.
+        prestamo.Estado = "A";
 
-        prestamo.InicioDescuento = dto.FechaEntrega.AddMonths(1);
-        prestamo.FinalDescuento = dto.FechaEntrega.AddMonths(prestamo.PlazoMeses);
-
-        await _context.SaveChangesAsync();
-
-        await _calculadora.GenerarYGuardarTablaAmortizacionAsync(prestamo.PrestamoId);
-
-        return true;
+        return await _context.SaveChangesAsync() > 0;
     }
 
     /// <inheritdoc />
@@ -253,20 +256,12 @@ public class PrestamosService : IPrestamosService
         if (prestamo.Estado != "E")
             throw new InvalidOperationException("Solo se pueden aprobar préstamos en evaluación.");
 
-        prestamo.Estado = "A"; // Activo
-        prestamo.FechaDeposito = fechaEntrega;
-        prestamo.MetodoEntrega = metodoEntrega;
-        prestamo.ReferenciaBancaria = referencia;
+        prestamo.Estado = "T"; // Pendiente de Entrega
 
-        if (!string.IsNullOrEmpty(folio))
-            prestamo.Folio = folio;
-
-        prestamo.InicioDescuento = fechaEntrega.AddMonths(1);
-        prestamo.FinalDescuento = fechaEntrega.AddMonths(prestamo.PlazoMeses);
+        if (!string.IsNullOrEmpty(notas))
+            prestamo.DestinoCredito = $"APROBADO: {notas}";
 
         await _context.SaveChangesAsync();
-
-        await _calculadora.GenerarYGuardarTablaAmortizacionAsync(prestamo.PrestamoId);
 
         return true;
     }
@@ -316,9 +311,133 @@ public class PrestamosService : IPrestamosService
     }
 
     /// <inheritdoc />
+    public async Task<bool> DevolverAEvaluacionAsync(int prestamoId)
+    {
+        var prestamo = await _context.Prestamos.FindAsync(prestamoId);
+
+        if (prestamo is null)
+            throw new InvalidOperationException("El préstamo no existe.");
+
+        if (prestamo.Estado != "T")
+            throw new InvalidOperationException("Solo se pueden devolver a evaluación solicitudes en estado 'Pendiente de Entrega'.");
+
+        prestamo.Estado = "E";
+        return await _context.SaveChangesAsync() > 0;
+    }
+
+    /// <inheritdoc />
     public AmortizacionPreviewResultDto SimularAmortizacion(SimularAmortizacionDto dto)
     {
         return _calculadora.SimularAmortizacion(dto);
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> ActualizarSolicitudAsync(int prestamoId, PrestamoCreateDto dto)
+    {
+        var prestamo = await _context.Prestamos.FindAsync(prestamoId);
+        if (prestamo is null)
+            throw new InvalidOperationException($"No se encontró la solicitud con ID {prestamoId}.");
+
+        if (prestamo.Estado != "E")
+            throw new InvalidOperationException("Solo se pueden modificar solicitudes en estado 'En Evaluación'.");
+
+        var empleado = await _context.Empleados.FindAsync(dto.EmpleadoId)
+            ?? throw new InvalidOperationException("El empleado no existe.");
+
+        bool tieneNomina   = dto.MontoAprobado > 0;
+        bool tieneDirectos = dto.PrestamosDirectos?.Count > 0;
+
+        if (!tieneNomina && !tieneDirectos)
+            throw new InvalidOperationException("La solicitud debe incluir al menos un Préstamo Nómina o un Préstamo Directo.");
+
+        if (tieneNomina && (dto.PlazoMeses <= 0 || dto.TasaInteresMensual <= 0))
+            throw new InvalidOperationException("El Préstamo Nómina requiere plazo y tasa de interés mayores a cero.");
+
+        decimal totalPagar     = dto.Amortizaciones.Sum(a => a.ImportePago);
+        decimal totalSolicitud = dto.MontoAprobado + (dto.PrestamosDirectos?.Sum(pd => pd.MontoSolicitado) ?? 0);
+        DateTime fechaUltimoPago = dto.Amortizaciones.Count > 0
+            ? dto.Amortizaciones.Max(a => a.FechaPago)
+            : dto.FechaEntrega;
+
+        // Actualizar campos del préstamo
+        prestamo.EmpleadoId        = dto.EmpleadoId;
+        prestamo.FuenteFondeoId    = dto.FondeadoraId;
+        prestamo.TipoPrestamoId    = dto.TipoPrestamoId;
+        prestamo.TipoPagoId        = dto.TipoPagoId;
+        prestamo.MontoAprobado     = dto.MontoAprobado;
+        prestamo.PlazoMeses        = dto.PlazoMeses;
+        prestamo.TasaInteresMensual = dto.TasaInteresMensual;
+        prestamo.TasaInteresAnual  = dto.TasaInteresMensual * 12;
+        prestamo.DestinoCredito    = dto.DestinoCredito;
+        prestamo.FechaSolicitud    = dto.FechaSolicitud;
+        prestamo.FechaDeposito     = dto.FechaEntrega;
+        prestamo.MetodoEntrega     = dto.MetodoEntrega;
+        prestamo.ReferenciaBancaria = dto.ReferenciaBancaria;
+        prestamo.Folio             = dto.Folio;
+        prestamo.SueldoLaboral     = empleado.SueldoLaboral ?? 0;
+        prestamo.NumeroCuotas      = dto.Amortizaciones.Count;
+        prestamo.ImporteCuotas     = dto.Amortizaciones.Count > 0 ? dto.Amortizaciones[0].ImportePago : 0;
+        prestamo.InicioDescuento   = dto.FechaEntrega.AddMonths(1);
+        prestamo.FinalDescuento    = fechaUltimoPago;
+        prestamo.AvalCredito       = dto.EmpleadoIdAval.HasValue;
+        prestamo.EmpleadoIdaval    = dto.EmpleadoIdAval ?? 0;
+        prestamo.TotalPagar        = totalPagar;
+        prestamo.SaldoPendiente    = dto.MontoAprobado;
+        prestamo.TotalSolicitud    = totalSolicitud;
+
+        // Reemplazar amortizaciones
+        var amortizacionesViejas = await _context.PrestamosAmortizaciones
+            .Where(a => a.PrestamoId == prestamoId)
+            .ToListAsync();
+        _context.PrestamosAmortizaciones.RemoveRange(amortizacionesViejas);
+
+        if (dto.Amortizaciones?.Count > 0)
+        {
+            var nuevasAmortizaciones = dto.Amortizaciones.Select(a => new PrestamosAmortizacione
+            {
+                PrestamoId           = prestamoId,
+                NumeroPago           = a.NumeroPago,
+                FechaPago            = a.FechaPago,
+                InicioPeriodoPago    = a.FechaPago.AddMonths(-1),
+                DescripcionPago      = $"Cuota {a.NumeroPago}/{dto.Amortizaciones.Count}",
+                TasaInteres          = dto.TasaInteresMensual,
+                SaldoInicial         = a.NumeroPago > 1
+                                         ? dto.Amortizaciones[a.NumeroPago - 2].SaldoFinal
+                                         : dto.MontoAprobado,
+                ImportePago          = a.ImportePago,
+                ImportePagoCapital   = a.ImporteCapital,
+                ImportePagoInteres   = a.ImporteInteres,
+                PagoExtraCapital     = 0,
+                SaldoFinal           = a.SaldoFinal,
+                StatusPago           = false
+            }).ToList();
+            _context.PrestamosAmortizaciones.AddRange(nuevasAmortizaciones);
+        }
+
+        // Reemplazar préstamos directos
+        var directosViejos = await _context.PrestamosDirectos
+            .Where(d => d.PrestamoId == prestamoId)
+            .ToListAsync();
+        _context.PrestamosDirectos.RemoveRange(directosViejos);
+
+        if (dto.PrestamosDirectos?.Count > 0)
+        {
+            var nuevosDirectos = dto.PrestamosDirectos.Select(pd => new PrestamoDirecto
+            {
+                PrestamoId           = prestamoId,
+                Descripcion          = pd.Descripcion,
+                MontoSolicitado      = pd.MontoSolicitado,
+                TasaMensual          = pd.TasaMensual,
+                FechaPago            = pd.FechaPago,
+                DiazPlazo            = pd.DiazPlazo,
+                MontoIntereses       = Math.Round(pd.MontoSolicitado * (pd.TasaMensual / 100m) * (pd.DiazPlazo / 30m), 2),
+                TotalCapitalInteres  = pd.MontoSolicitado + Math.Round(pd.MontoSolicitado * (pd.TasaMensual / 100m) * (pd.DiazPlazo / 30m), 2)
+            }).ToList();
+            _context.PrestamosDirectos.AddRange(nuevosDirectos);
+        }
+
+        await _context.SaveChangesAsync();
+        return true;
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -329,5 +448,6 @@ public class PrestamosService : IPrestamosService
             .Include(p => p.FuenteFondeo)
             .Include(p => p.TipoPrestamo)
             .Include(p => p.TipoPago)
+            .Include(p => p.PrestamosDirectos)
             .AsNoTracking();
 }

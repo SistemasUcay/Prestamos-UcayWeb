@@ -310,16 +310,18 @@ public class CalculadoraAmortizacionService : ICalculadoraAmortizacionService
                 if (pd.MontoSolicitado > 0)
                 {
                     int diasPlazoPD = pd.DiazPlazo > 0 ? pd.DiazPlazo : (int)(pd.FechaPago - dto.FechaEntrega).TotalDays;
-                    decimal tasaMensualPD = pd.TasaMensual > 0 ? pd.TasaMensual : tasaPorPeriodo;
+                    // TasaMensual viene como porcentaje (ej. 2.5 = 2.5%); se divide entre 100 para obtener el factor.
+                    // Si no viene tasa, se usa tasaPorPeriodo que ya está en factor decimal.
+                    decimal tasaFactorPD = pd.TasaMensual > 0 ? pd.TasaMensual / 100m : tasaPorPeriodo;
                     decimal mesesPlazo = diasPlazoPD / 30m;
-                    decimal intereses = Math.Round(pd.MontoSolicitado * tasaMensualPD * mesesPlazo, 2);
+                    decimal intereses = Math.Round(pd.MontoSolicitado * tasaFactorPD * mesesPlazo, 2);
                     decimal total = pd.MontoSolicitado + intereses;
 
                     prestamosDirectosCalculados.Add(new PrestamoDirectoDto
                     {
                         Descripcion      = pd.Descripcion,
                         MontoSolicitado  = pd.MontoSolicitado,
-                        TasaMensual      = tasaMensualPD,
+                        TasaMensual      = pd.TasaMensual > 0 ? pd.TasaMensual : tasaPorPeriodo * 100m,
                         FechaPago        = pd.FechaPago,
                         DiazPlazo        = diasPlazoPD,
                         MontoIntereses   = intereses,

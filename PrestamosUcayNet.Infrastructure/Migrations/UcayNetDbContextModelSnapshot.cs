@@ -615,6 +615,96 @@ namespace PrestamosUcayNet.Infrastructure.Migrations
                     b.ToTable("Prestamos", "Prestamos");
                 });
 
+            modelBuilder.Entity("PrestamosUcayNet.Domain.Entities.PrestamoCobro", b =>
+                {
+                    b.Property<int>("CobroId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CobroId"));
+
+                    b.Property<DateTime>("FechaCobro")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("MetodoPago")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<decimal>("MontoTotal")
+                        .HasColumnType("money");
+
+                    b.Property<string>("OrigenNomina")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("PrestamoId")
+                        .HasColumnType("int")
+                        .HasColumnName("PrestamoID");
+
+                    b.Property<string>("Referencia")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("UsuarioId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("CobroId");
+
+                    b.HasIndex("PrestamoId");
+
+                    b.ToTable("PrestamoCobros", "Prestamos");
+                });
+
+            modelBuilder.Entity("PrestamosUcayNet.Domain.Entities.PrestamoDetallePago", b =>
+                {
+                    b.Property<int>("DetallePagoId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DetallePagoId"));
+
+                    b.Property<int?>("AmortizacionId")
+                        .HasColumnType("int")
+                        .HasColumnName("AmortizacionID");
+
+                    b.Property<int>("CobroId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("MontoCapital")
+                        .HasColumnType("money");
+
+                    b.Property<decimal>("MontoInteres")
+                        .HasColumnType("money");
+
+                    b.Property<decimal>("MontoTotal")
+                        .HasColumnType("money");
+
+                    b.Property<decimal>("PagoExtraCapital")
+                        .HasColumnType("money");
+
+                    b.Property<int?>("PrestamoDirectoId")
+                        .HasColumnType("int")
+                        .HasColumnName("PrestamoDirectoID");
+
+                    b.Property<int>("PrestamoId")
+                        .HasColumnType("int")
+                        .HasColumnName("PrestamoID");
+
+                    b.HasKey("DetallePagoId");
+
+                    b.HasIndex("AmortizacionId");
+
+                    b.HasIndex("CobroId");
+
+                    b.HasIndex("PrestamoDirectoId");
+
+                    b.HasIndex("PrestamoId");
+
+                    b.ToTable("PrestamoDetallePagos", "Prestamos");
+                });
+
             modelBuilder.Entity("PrestamosUcayNet.Domain.Entities.PrestamoDirecto", b =>
                 {
                     b.Property<int>("NumPrestamoDirecto")
@@ -639,6 +729,10 @@ namespace PrestamosUcayNet.Infrastructure.Migrations
                         .HasColumnType("smalldatetime")
                         .HasComment("Fecha de pago único (vencimiento)");
 
+                    b.Property<DateTime?>("FechaPagoReal")
+                        .HasColumnType("smalldatetime")
+                        .HasComment("Fecha en que se registró el cobro del préstamo directo");
+
                     b.Property<decimal>("MontoIntereses")
                         .HasColumnType("money")
                         .HasComment("Monto de intereses calculados");
@@ -654,6 +748,11 @@ namespace PrestamosUcayNet.Infrastructure.Migrations
                     b.Property<decimal>("TasaMensual")
                         .HasColumnType("decimal(8, 4)")
                         .HasComment("Tasa de interés mensual aplicable");
+
+                    b.Property<bool>("StatusPago")
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasComment("Indica si el préstamo directo ya fue pagado");
 
                     b.Property<decimal>("TotalCapitalInteres")
                         .HasColumnType("money")
@@ -1060,6 +1159,51 @@ namespace PrestamosUcayNet.Infrastructure.Migrations
                     b.Navigation("TipoPrestamo");
                 });
 
+            modelBuilder.Entity("PrestamosUcayNet.Domain.Entities.PrestamoCobro", b =>
+                {
+                    b.HasOne("PrestamosUcayNet.Domain.Entities.Prestamo", "Prestamo")
+                        .WithMany()
+                        .HasForeignKey("PrestamoId")
+                        .IsRequired()
+                        .HasConstraintName("FK_PrestamoCobros_Prestamos");
+
+                    b.Navigation("Prestamo");
+                });
+
+            modelBuilder.Entity("PrestamosUcayNet.Domain.Entities.PrestamoDetallePago", b =>
+                {
+                    b.HasOne("PrestamosUcayNet.Domain.Entities.PrestamosAmortizacione", "Amortizacion")
+                        .WithMany()
+                        .HasForeignKey("AmortizacionId")
+                        .HasConstraintName("FK_PrestamoDetallePagos_PrestamosAmortizaciones");
+
+                    b.HasOne("PrestamosUcayNet.Domain.Entities.PrestamoCobro", "Cobro")
+                        .WithMany("PrestamoDetallePagos")
+                        .HasForeignKey("CobroId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_PrestamoDetallePagos_PrestamoCobros");
+
+                    b.HasOne("PrestamosUcayNet.Domain.Entities.PrestamoDirecto", "PrestamoDirecto")
+                        .WithMany()
+                        .HasForeignKey("PrestamoDirectoId")
+                        .HasConstraintName("FK_PrestamoDetallePagos_PrestamosDirectos");
+
+                    b.HasOne("PrestamosUcayNet.Domain.Entities.Prestamo", "Prestamo")
+                        .WithMany()
+                        .HasForeignKey("PrestamoId")
+                        .IsRequired()
+                        .HasConstraintName("FK_PrestamoDetallePagos_Prestamos");
+
+                    b.Navigation("Amortizacion");
+
+                    b.Navigation("Cobro");
+
+                    b.Navigation("Prestamo");
+
+                    b.Navigation("PrestamoDirecto");
+                });
+
             modelBuilder.Entity("PrestamosUcayNet.Domain.Entities.PrestamoDirecto", b =>
                 {
                     b.HasOne("PrestamosUcayNet.Domain.Entities.Prestamo", "Prestamo")
@@ -1118,6 +1262,11 @@ namespace PrestamosUcayNet.Infrastructure.Migrations
                     b.Navigation("PrestamosAmortizaciones");
 
                     b.Navigation("PrestamosDirectos");
+                });
+
+            modelBuilder.Entity("PrestamosUcayNet.Domain.Entities.PrestamoCobro", b =>
+                {
+                    b.Navigation("PrestamoDetallePagos");
                 });
 
             modelBuilder.Entity("PrestamosUcayNet.Domain.Entities.Puesto", b =>

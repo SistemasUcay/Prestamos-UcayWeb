@@ -1,0 +1,1285 @@
+@page "/gestion-cobros"
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using System.Globalization
+@using System.Net.Http.Json
+@using Microsoft.JSInterop
+@using PrestamosUcayNet.Application.Cobros.Commands
+@using PrestamosUcayNet.Application.DTOs
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador,Cobranza,Finanzas")]
+@inject CobrosApiService CobrosApi
+@inject EmpresasApiService EmpresasApi
+@inject CatalogosApiService CatalogosApi
+@inject PrestamosApiService PrestamosApi
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IJSRuntime JS
+
+<PageTitle>Gestión de Cobros — Préstamos UcayNet</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-1">
+    <MudIcon Icon="@Icons.Material.Filled.Payments" Class="mr-2" Style="vertical-align: middle;" />
+    Gestión de Cobros y Amortizaciones
+</MudText>
+<MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mb-4">
+    Administra la recuperación de cartera para préstamos directos y de nómina.
+</MudText>
+
+<MudTabs Elevation="2" Rounded="true" Color="Color.Primary" ApplyEffectsToContainer="true">
+        
+        <!-- PESTAÑA A: PAGO INDIVIDUAL -->
+        <MudTabPanel Text="Pago Individual" Icon="@Icons.Material.Filled.Person">
+            <div class="pa-6">
+            <MudGrid>
+                <!-- Búsqueda Avanzada de Préstamos -->
+                <MudItem xs="12" md="5">
+                    <MudCard Outlined="true" Style="border-radius: 12px; height: 100%;">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6" Color="Color.Primary">
+                                    <MudIcon Icon="@Icons.Material.Filled.PersonSearch" Class="mr-2" Style="vertical-align: middle;" />
+                                    Buscar Préstamo Activo
+                                </MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudGrid Spacing="2">
+                                <MudItem xs="12">
+                                    <MudTextField @bind-Value="_buscarTexto" 
+                                                  Placeholder="Nombre, ID Empleado o Folio del Préstamo..." 
+                                                  Label="Criterio de Búsqueda" 
+                                                  Variant="Variant.Outlined" 
+                                                  Adornment="Adornment.End" 
+                                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                                  OnAdornmentClick="BuscarPrestamos"
+                                                  @onkeydown="OnSearchKeyDown"/>
+                                </MudItem>
+                                <MudItem xs="12">
+                                    @if (_buscando)
+                                    {
+                                        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-2" />
+                                    }
+                                    @if (_prestamosEncontrados != null && _prestamosEncontrados.Any())
+                                    {
+                                        <MudList T="PrestamoListDto" SelectedValue="_prestamoSeleccionado" SelectedValueChanged="OnPrestamoSelected" Color="Color.Primary" Dense="true" Style="max-height: 250px; overflow-y: auto;">
+                                            @foreach (var p in _prestamosEncontrados)
+                                            {
+                                                <MudListItem Value="@p" Text="@($"{p.Folio ?? "S/F"} | {p.NombreEmpleado} (S.P. ${p.SaldoPendiente:N2})")" 
+                                                             Icon="@Icons.Material.Filled.RequestQuote" />
+                                            }
+                                        </MudList>
+                                    }
+                                    else if (_prestamosEncontrados != null)
+                                    {
+                                        <MudText Typo="Typo.body2" Color="Color.Error" Class="mt-2">No se encontraron préstamos activos para el criterio ingresado.</MudText>
+                                    }
+                                </MudItem>
+                            </MudGrid>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+
+                <!-- Panel de Detalle y Captura de Cobro -->
+                <MudItem xs="12" md="7">
+                    @if (_prestamoDetalle != null)
+                    {
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12">
+                                <MudCard Outlined="true" Style="border-radius: 12px; background: var(--mud-palette-background-grey);">
+                                    <MudCardHeader>
+                                        <CardHeaderContent>
+                                            <div class="d-flex justify-space-between align-center flex-wrap gap-2">
+                                                <MudText Typo="Typo.h6" Color="Color.Primary">
+                                                    <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Class="mr-2" Style="vertical-align: middle;" />
+                                                    Información del Préstamo Seleccionado
+                                                </MudText>
+                                                <MudChip T="string" Color="Color.Info" Size="Size.Small">@_prestamoDetalle.EstadoDescripcion</MudChip>
+                                            </div>
+                                        </CardHeaderContent>
+                                    </MudCardHeader>
+                                    <MudCardContent>
+                                        <MudGrid Spacing="2" Class="mb-3">
+                                            <MudItem xs="12" sm="6" md="3">
+                                                <MudPaper Outlined="true" Class="pa-3" Style="border-radius: 10px;">
+                                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Monto Aprobado</MudText>
+                                                    <MudText Typo="Typo.h6">@_prestamoDetalle.MontoAprobado.ToString("C2")</MudText>
+                                                </MudPaper>
+                                            </MudItem>
+                                            <MudItem xs="12" sm="6" md="3">
+                                                <MudPaper Outlined="true" Class="pa-3" Style="border-radius: 10px;">
+                                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Préstamos Directos</MudText>
+                                                    <MudText Typo="Typo.h6">@_prestamoDetalle.PrestamosDirectos.Sum(x => x.MontoSolicitado).ToString("C2")</MudText>
+                                                </MudPaper>
+                                            </MudItem>
+                                            <MudItem xs="12" sm="6" md="3">
+                                                <MudPaper Outlined="true" Class="pa-3" Style="border-radius: 10px;">
+                                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Total de la Solicitud</MudText>
+                                                    <MudText Typo="Typo.h6">@_prestamoDetalle.TotalSolicitud.ToString("C2")</MudText>
+                                                </MudPaper>
+                                            </MudItem>
+                                            <MudItem xs="12" sm="6" md="3">
+                                                <MudPaper Outlined="true" Class="pa-3" Style="border-radius: 10px;">
+                                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Saldo Pendiente</MudText>
+                                                    <MudText Typo="Typo.h6" Color="Color.Error">@_prestamoDetalle.SaldoPendiente.ToString("C2")</MudText>
+                                                </MudPaper>
+                                            </MudItem>
+                                        </MudGrid>
+
+                                        <MudDivider Class="my-3" />
+
+                                        <MudGrid Spacing="2">
+                                            <MudItem xs="12" md="4">
+                                                <MudText Typo="Typo.body2"><b>Folio:</b> @(_prestamoDetalle.Folio ?? "S/F")</MudText>
+                                                <MudText Typo="Typo.body2"><b>Cliente:</b> @_prestamoDetalle.NombreEmpleado</MudText>
+                                                <MudText Typo="Typo.body2"><b>Fondeadora:</b> @_prestamoDetalle.NombreFondeadora</MudText>
+                                                <MudText Typo="Typo.body2"><b>Tipo de Préstamo:</b> @_prestamoDetalle.TipoPrestamoDescripcion</MudText>
+                                                <MudText Typo="Typo.body2"><b>Frecuencia:</b> @_prestamoDetalle.TipoPagoDescripcion</MudText>
+                                            </MudItem>
+                                            <MudItem xs="12" md="4">
+                                                <MudText Typo="Typo.body2"><b>Fecha Solicitud:</b> @_prestamoDetalle.FechaSolicitud.ToString("dd/MM/yyyy")</MudText>
+                                                <MudText Typo="Typo.body2"><b>Fecha Aprobado:</b> @_prestamoDetalle.FechaAprobado.ToString("dd/MM/yyyy")</MudText>
+                                                <MudText Typo="Typo.body2"><b>Inicio Descuento:</b> @_prestamoDetalle.InicioDescuento.ToString("dd/MM/yyyy")</MudText>
+                                                <MudText Typo="Typo.body2"><b>Fin Descuento:</b> @_prestamoDetalle.FinalDescuento.ToString("dd/MM/yyyy")</MudText>
+                                                <MudText Typo="Typo.body2"><b>Cuotas:</b> @_prestamoDetalle.NumeroCuotas</MudText>
+                                                <MudText Typo="Typo.body2"><b>Cuota Programada:</b> @_prestamoDetalle.ImporteCuotas.ToString("C2")</MudText>
+                                            </MudItem>
+                                            <MudItem xs="12" md="4">
+                                                <MudText Typo="Typo.body2"><b>Tasa Mensual:</b> @_prestamoDetalle.TasaInteresMensual.ToString("N2")%</MudText>
+                                                <MudText Typo="Typo.body2"><b>Tasa Anual:</b> @_prestamoDetalle.TasaInteresAnual.ToString("N2")%</MudText>
+                                                <MudText Typo="Typo.body2"><b>Total a Pagar:</b> @_prestamoDetalle.TotalPagar.ToString("C2")</MudText>
+                                                <MudText Typo="Typo.body2"><b>Sueldo Laboral:</b> @_prestamoDetalle.SueldoLaboral.ToString("C2")</MudText>
+                                                <MudText Typo="Typo.body2"><b>Método Entrega:</b> @(_prestamoDetalle.MetodoEntrega ?? "N/D")</MudText>
+                                                <MudText Typo="Typo.body2"><b>Referencia:</b> @(_prestamoDetalle.ReferenciaBancaria ?? "N/D")</MudText>
+                                            </MudItem>
+                                            <MudItem xs="12">
+                                                <MudText Typo="Typo.body2"><b>Destino del Crédito:</b> @_prestamoDetalle.DestinoCredito</MudText>
+                                            </MudItem>
+                                        </MudGrid>
+                                    </MudCardContent>
+                                </MudCard>
+                            </MudItem>
+
+                            </MudGrid>
+                    }
+                    else
+                    {
+                        <div class="d-flex flex-column align-center justify-center pa-8 border-dashed border-2 mud-border-primary" style="border-radius: 12px; height: 100%; min-height: 180px;">
+                            <MudIcon Icon="@Icons.Material.Filled.Info" Color="Color.Primary" Style="font-size: 3rem;" />
+                            <MudText Typo="Typo.body1" Class="mt-2 text-center">Selecciona un préstamo en la búsqueda para ver más información, sus amortizaciones y los préstamos directos asociados.</MudText>
+                        </div>
+                    }
+                </MudItem>
+
+                <!-- Tabla de Amortizaciones Pendientes del Préstamo Seleccionado -->
+                @if (_prestamoDetalle != null)
+                {
+                    <MudItem xs="12" md="12" Class="mt-4">
+                        <MudGrid>
+                            <MudItem xs="12" lg="8">
+                                <MudPaper Outlined="true" Class="pa-4" Style="border-radius: 12px;">
+                                    <MudText Typo="Typo.h6" Class="mb-3" Color="Color.Primary">Amortizaciones Pendientes</MudText>
+                                    <MudTable T="AmortizacionDto" Items="_amortizacionesPendientes" Dense="true" Hover="true" Striped="true" Elevation="0" 
+                                              SelectedItem="_amortizacionSeleccionada" SelectedItemChanged="@(val => OnAmortizacionSelected(val))"
+                                              RowStyleFunc="GetAmortizacionRowStyle">
+                                        <HeaderContent>
+                                            <MudTh>Pago #</MudTh>
+                                            <MudTh>Fecha Vence</MudTh>
+                                            <MudTh Style="text-align: right;">Interés</MudTh>
+                                            <MudTh Style="text-align: right;">Capital</MudTh>
+                                            <MudTh Style="text-align: right;">Total Cuota</MudTh>
+                                            <MudTh>Acción</MudTh>
+                                        </HeaderContent>
+                                        <RowTemplate>
+                                            <MudTd DataLabel="Pago #">@context.NumeroPago</MudTd>
+                                            <MudTd DataLabel="Fecha Vence">@context.FechaPago.ToShortDateString()</MudTd>
+                                            <MudTd DataLabel="Interés" Style="text-align: right;">@context.ImporteInteres.ToString("C2")</MudTd>
+                                            <MudTd DataLabel="Capital" Style="text-align: right;">@context.ImporteCapital.ToString("C2")</MudTd>
+                                            <MudTd DataLabel="Total Cuota" Style="text-align: right; font-weight: bold;">@context.ImportePago.ToString("C2")</MudTd>
+                                            <MudTd>
+                                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" OnClick="() => SeleccionarParaPagar(context)">
+                                                    Cobrar
+                                                </MudButton>
+                                            </MudTd>
+                                        </RowTemplate>
+                                    </MudTable>
+                                </MudPaper>
+                            </MudItem>
+
+                            <MudItem xs="12" lg="4">
+                                <!-- Panel de Cobro Activo -->
+                                @if (_amortizacionSeleccionada != null)
+                                {
+                                    <MudPaper Class="pa-4" Outlined="true" Style="border-radius: 12px; background: #fafafa;">
+                                        <MudText Typo="Typo.h6" Color="Color.Primary" Class="mb-2">Panel de Cobro - Cuota #@_amortizacionSeleccionada.NumeroPago</MudText>
+                                        <MudDivider Class="mb-4" />
+
+                                        <MudGrid Spacing="2">
+                                            <MudItem xs="12">
+                                                <MudNumericField T="decimal" @bind-Value="_montoRecibido" 
+                                                                 Label="Monto Recibido" 
+                                                                 Variant="Variant.Outlined" 
+                                                                 Format="C2" 
+                                                                 Min="0.01M"
+                                                                 TextChanged="OnMontoRecibidoChanged"
+                                                                 Immediate="true"/>
+                                            </MudItem>
+                                            <MudItem xs="12">
+                                                <MudSelect T="string" @bind-Value="_metodoPago" Label="Método de Pago" Variant="Variant.Outlined">
+                                                    <MudSelectItem Value="@("Efectivo")">Efectivo</MudSelectItem>
+                                                    <MudSelectItem Value="@("Transferencia")">Transferencia</MudSelectItem>
+                                                    <MudSelectItem Value="@("Cheque")">Cheque</MudSelectItem>
+                                                    <MudSelectItem Value="@("Nomina")">Deducción de Nómina</MudSelectItem>
+                                                </MudSelect>
+                                            </MudItem>
+                                            <MudItem xs="12">
+                                                <MudTextField @bind-Value="_referenciaPago" Label="Referencia / Folio Banco" Variant="Variant.Outlined" />
+                                            </MudItem>
+                                            <MudItem xs="12">
+                                                <MudDatePicker @bind-Date="_fechaPagoIndividual" Label="Fecha de Pago" Variant="Variant.Outlined" Editable="true" />
+                                            </MudItem>
+
+                                            <!-- Distribución Dinámica -->
+                                            <MudItem xs="12" Class="mt-2">
+                                                <MudPaper Outlined="true" Class="pa-3" Style="background: #ffffff; border-radius: 8px;">
+                                                    <MudText Typo="Typo.subtitle2" Class="mb-1" Style="font-weight: bold;">Distribución Estimada:</MudText>
+                                                    <div class="d-flex justify-space-between">
+                                                        <MudText Typo="Typo.body2">A Interés:</MudText>
+                                                        <MudText Typo="Typo.body2">@_distInteres.ToString("C2")</MudText>
+                                                    </div>
+                                                    <div class="d-flex justify-space-between">
+                                                        <MudText Typo="Typo.body2">A Capital:</MudText>
+                                                        <MudText Typo="Typo.body2">@_distCapital.ToString("C2")</MudText>
+                                                    </div>
+                                                    <div class="d-flex justify-space-between" style="color: var(--mud-palette-success);">
+                                                        <MudText Typo="Typo.body2"><b>Abono Extra Capital:</b></MudText>
+                                                        <MudText Typo="Typo.body2"><b>@_distExtra.ToString("C2")</b></MudText>
+                                                    </div>
+                                                    <MudDivider Class="my-2" />
+                                                    <div class="d-flex justify-space-between">
+                                                        <MudText Typo="Typo.body2">Pendiente de la cuota:</MudText>
+                                                        <MudText Typo="Typo.body2" Color="@(_distPendiente > 0 ? Color.Error : Color.Default)">@_distPendiente.ToString("C2")</MudText>
+                                                    </div>
+                                                </MudPaper>
+                                            </MudItem>
+
+                                            <MudItem xs="12" Class="d-flex justify-end mt-4">
+                                                <MudButton Variant="Variant.Filled" Color="Color.Success" FullWidth="true" Size="Size.Large"
+                                                           OnClick="AplicarCobroIndividual" Disabled="_guardandoCobro">
+                                                    @if (_guardandoCobro)
+                                                    {
+                                                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                                        <span>Procesando...</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>Aplicar Pago</span>
+                                                    }
+                                                </MudButton>
+                                            </MudItem>
+                                        </MudGrid>
+                                    </MudPaper>
+                                }
+                            </MudItem>
+                        </MudGrid>
+                            </MudItem>
+
+                            @if (_prestamoDetalle.PrestamosDirectos.Any())
+                            {
+                                <MudItem xs="12" md="12" Class="mt-4">
+                                    <MudGrid>
+                                        <MudItem xs="12" lg="8">
+                                            <MudPaper Outlined="true" Class="pa-4" Style="border-radius: 12px;">
+                                                <MudText Typo="Typo.h6" Class="mb-3" Color="Color.Warning">
+                                                    <MudIcon Icon="@Icons.Material.Filled.RequestQuote" Class="mr-1" Style="vertical-align: middle;" />
+                                                    Préstamos Directos
+                                                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Class="ml-2">@_prestamoDetalle.PrestamosDirectos.Count</MudChip>
+                                                </MudText>
+                                                <MudTable T="PrestamoDirectoDto" Items="_prestamoDetalle.PrestamosDirectos" Dense="true" Hover="true" Striped="true" Elevation="0"
+                                                          SelectedItem="_prestamoDirectoSeleccionado" SelectedItemChanged="@(val => OnDirectoSelected(val))"
+                                                          RowStyleFunc="GetDirectoRowStyle">
+                                                    <HeaderContent>
+                                                        <MudTh>#</MudTh>
+                                                        <MudTh>Descripción</MudTh>
+                                                        <MudTh Style="text-align: right;">Monto</MudTh>
+                                                        <MudTh Style="text-align: right;">Tasa</MudTh>
+                                                        <MudTh>Fecha Pago</MudTh>
+                                                        <MudTh>Días</MudTh>
+                                                        <MudTh Style="text-align: right;">Intereses</MudTh>
+                                                        <MudTh Style="text-align: right;">Total</MudTh>
+                                                        <MudTh>Estado</MudTh>
+                                                        <MudTh>Acción</MudTh>
+                                                    </HeaderContent>
+                                                    <RowTemplate>
+                                                        <MudTd>@context.NumPrestamoDirecto</MudTd>
+                                                        <MudTd>@context.Descripcion</MudTd>
+                                                        <MudTd Style="text-align: right;">@context.MontoSolicitado.ToString("C2")</MudTd>
+                                                        <MudTd Style="text-align: right;">@context.TasaMensual.ToString("N2")%</MudTd>
+                                                        <MudTd>@context.FechaPago.ToString("dd/MM/yyyy")</MudTd>
+                                                        <MudTd>@context.DiazPlazo</MudTd>
+                                                        <MudTd Style="text-align: right;">@context.MontoIntereses.ToString("C2")</MudTd>
+                                                        <MudTd Style="text-align: right; font-weight: 700;">@context.TotalCapitalInteres.ToString("C2")</MudTd>
+                                                        <MudTd>
+                                                            @if (context.StatusPago)
+                                                            {
+                                                                <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Text">Pagado</MudChip>
+                                                            }
+                                                            else
+                                                            {
+                                                                <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Text">Pendiente</MudChip>
+                                                            }
+                                                        </MudTd>
+                                                        <MudTd>
+                                                            @if (!context.StatusPago)
+                                                            {
+                                                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning"
+                                                                           OnClick="() => SeleccionarDirectoParaPagar(context)">
+                                                                    Cobrar
+                                                                </MudButton>
+                                                            }
+                                                        </MudTd>
+                                                    </RowTemplate>
+                                                    <FooterContent>
+                                                        <MudTd ColSpan="2"><b>Total</b></MudTd>
+                                                        <MudTd Style="text-align: right;"><b>@_prestamoDetalle.PrestamosDirectos.Sum(x => x.MontoSolicitado).ToString("C2")</b></MudTd>
+                                                        <MudTd /><MudTd /><MudTd />
+                                                        <MudTd Style="text-align: right;"><b>@_prestamoDetalle.PrestamosDirectos.Sum(x => x.MontoIntereses).ToString("C2")</b></MudTd>
+                                                        <MudTd Style="text-align: right;"><b>@_prestamoDetalle.PrestamosDirectos.Sum(x => x.TotalCapitalInteres).ToString("C2")</b></MudTd>
+                                                        <MudTd /><MudTd />
+                                                    </FooterContent>
+                                                </MudTable>
+                                            </MudPaper>
+                                        </MudItem>
+
+                                        <MudItem xs="12" lg="4">
+                                            @if (_prestamoDirectoSeleccionado != null)
+                                            {
+                                                <MudPaper Class="pa-4" Outlined="true" Style="border-radius: 12px; background: #fffde7;">
+                                                    <MudText Typo="Typo.h6" Color="Color.Warning" Class="mb-2">Panel de Cobro - Directo #@_prestamoDirectoSeleccionado.NumPrestamoDirecto</MudText>
+                                                    <MudDivider Class="mb-4" />
+                                                    <MudGrid Spacing="2">
+                                                        <MudItem xs="12">
+                                                            <MudPaper Outlined="true" Class="pa-3" Style="background: #ffffff; border-radius: 8px;">
+                                                                <MudText Typo="Typo.subtitle2" Class="mb-1" Style="font-weight: bold;">Desglose:</MudText>
+                                                                <div class="d-flex justify-space-between">
+                                                                    <MudText Typo="Typo.body2">Capital:</MudText>
+                                                                    <MudText Typo="Typo.body2">@_prestamoDirectoSeleccionado.MontoSolicitado.ToString("C2")</MudText>
+                                                                </div>
+                                                                <div class="d-flex justify-space-between">
+                                                                    <MudText Typo="Typo.body2">Intereses:</MudText>
+                                                                    <MudText Typo="Typo.body2">@_prestamoDirectoSeleccionado.MontoIntereses.ToString("C2")</MudText>
+                                                                </div>
+                                                                <MudDivider Class="my-2" />
+                                                                <div class="d-flex justify-space-between">
+                                                                    <MudText Typo="Typo.body2"><b>Total a Liquidar:</b></MudText>
+                                                                    <MudText Typo="Typo.body2" Color="Color.Warning"><b>@_prestamoDirectoSeleccionado.TotalCapitalInteres.ToString("C2")</b></MudText>
+                                                                </div>
+                                                            </MudPaper>
+                                                        </MudItem>
+                                                        <MudItem xs="12">
+                                                            <MudSelect T="string" @bind-Value="_metodoPagoDirecto" Label="Método de Pago" Variant="Variant.Outlined">
+                                                                <MudSelectItem Value="@("Efectivo")">Efectivo</MudSelectItem>
+                                                                <MudSelectItem Value="@("Transferencia")">Transferencia</MudSelectItem>
+                                                                <MudSelectItem Value="@("Cheque")">Cheque</MudSelectItem>
+                                                                <MudSelectItem Value="@("Nomina")">Deducción de Nómina</MudSelectItem>
+                                                            </MudSelect>
+                                                        </MudItem>
+                                                        <MudItem xs="12">
+                                                            <MudTextField @bind-Value="_referenciaPagoDirecto" Label="Referencia / Folio Banco" Variant="Variant.Outlined" />
+                                                        </MudItem>
+                                                        <MudItem xs="12">
+                                                            <MudDatePicker @bind-Date="_fechaPagoDirecto" Label="Fecha de Pago" Variant="Variant.Outlined" Editable="true" />
+                                                        </MudItem>
+                                                        <MudItem xs="12" Class="d-flex justify-end mt-4">
+                                                            <MudButton Variant="Variant.Filled" Color="Color.Warning" FullWidth="true" Size="Size.Large"
+                                                                       OnClick="AplicarCobroDirecto" Disabled="_guardandoCobroDirecto">
+                                                                @if (_guardandoCobroDirecto)
+                                                                {
+                                                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                                                    <span>Procesando...</span>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <span>Liquidar Préstamo Directo</span>
+                                                                }
+                                                            </MudButton>
+                                                        </MudItem>
+                                                    </MudGrid>
+                                                </MudPaper>
+                                            }
+                                            else
+                                            {
+                                                <div class="d-flex flex-column align-center justify-center pa-6 border-dashed border-2 mud-border-warning" style="border-radius: 12px; height: 100%; min-height: 160px;">
+                                                    <MudIcon Icon="@Icons.Material.Filled.RequestQuote" Color="Color.Warning" Style="font-size: 2.5rem;" />
+                                                    <MudText Typo="Typo.body2" Class="mt-2 text-center" Color="Color.Secondary">Selecciona un préstamo directo para cobrar.</MudText>
+                                                </div>
+                                            }
+                                        </MudItem>
+                                    </MudGrid>
+                                </MudItem>
+                            }
+                        }
+                    </MudGrid>
+                                </div>
+                            </MudTabPanel>
+
+                            <!-- PESTAÑA B: PAGO MASIVO (LOTE) -->
+        <MudTabPanel Text="Cobranza Masiva (Por Lote)" Icon="@Icons.Material.Filled.GroupWork">
+            <div class="pa-6">
+            <!-- Filtros de Generación de Lote -->
+            <MudPaper Outlined="true" Class="pa-4 mb-4" Style="border-radius: 12px;">
+                    <MudText Typo="Typo.h6" Color="Color.Primary" Class="mb-3">
+                    <MudIcon Icon="@Icons.Material.Filled.FilterAlt" Class="mr-1" Style="vertical-align: middle;" />
+                    Filtros de Búsqueda
+                </MudText>
+                <MudGrid Spacing="3" Class="align-center">
+                    <MudItem xs="12" sm="3">
+                        <MudSelect T="int?" Value="_loteEmpresaId" ValueChanged="OnLoteEmpresaChanged" Label="Empresa / Patrón" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter">
+                            <MudSelectItem T="int?" Value="null">Todas las Empresas</MudSelectItem>
+                            @foreach (var emp in _empresas)
+                            {
+                                <MudSelectItem T="int?" Value="@emp.NumEmpresa">@emp.RazonSocial</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="2">
+                        <MudSelect T="int?" Value="_loteTipoPagoId" ValueChanged="OnLoteTipoPagoChanged" Label="Frecuencia de Pago" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter">
+                            <MudSelectItem T="int?" Value="null">Todas las Frecuencias</MudSelectItem>
+                            @foreach (var tp in _tiposPago)
+                            {
+                                <MudSelectItem T="int?" Value="@tp.TipoPagoId">@tp.Descripcion</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="3">
+                        <MudDatePicker Date="_loteFechaVencimiento" DateChanged="OnLoteFechaVencimientoChanged" Label="Fecha de Vencimiento" Variant="Variant.Outlined" Editable="true" Placeholder="Vence en o antes de..." />
+                    </MudItem>
+                    <MudItem xs="12" sm="2">
+                        <MudSelect T="string" Value="_loteTipoFiltro" ValueChanged="OnLoteTipoFiltroChanged" Label="Tipo de Préstamo" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter">
+                            <MudSelectItem Value="@("Todos")">Todos</MudSelectItem>
+                            <MudSelectItem Value="@("Nomina")">Solo Nómina</MudSelectItem>
+                            <MudSelectItem Value="@("Directo")">Solo Directos</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="2" Class="d-flex gap-2">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="CargarLoteCobro" StartIcon="@Icons.Material.Filled.Refresh" Style="height: 56px;">
+                            Buscar
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <!-- Resumen de Cobranza -->
+            <MudGrid Class="mb-4">
+                <MudItem xs="12" md="12">
+                     <MudPaper Outlined="true" Class="pa-4 d-flex justify-space-around align-center flex-wrap gap-4" Style="border-radius: 12px; background: #fafafa; height: 100%;">
+                        <div class="text-center">
+                            <MudText Typo="Typo.h5" Color="Color.Primary" Style="font-weight: 700;">@_loteAmortizacionesPorTipo.Count()</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Total Encontrados</MudText>
+                            <div class="d-flex gap-1 justify-center mt-1">
+                                <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Text">Nómina: @_loteAmortizacionesPorTipo.Count(x => !x.Amortizacion.EsPrestamoDirecto)</MudChip>
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Text">Directos: @_loteAmortizacionesPorTipo.Count(x => x.Amortizacion.EsPrestamoDirecto)</MudChip>
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <MudText Typo="Typo.h5" Color="Color.Info" Style="font-weight: 700;">@_loteAmortizacionesPorTipo.Count(x => x.Selected)</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Seleccionados</MudText>
+                            <div class="d-flex gap-1 justify-center mt-1">
+                                <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Text">Nómina: @_loteAmortizacionesPorTipo.Count(x => x.Selected && !x.Amortizacion.EsPrestamoDirecto)</MudChip>
+                                <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Text">Directos: @_loteAmortizacionesPorTipo.Count(x => x.Selected && x.Amortizacion.EsPrestamoDirecto)</MudChip>
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <MudText Typo="Typo.h5" Color="Color.Warning" Style="font-weight: 700;">@_loteAmortizacionesPorTipo.Where(x => x.Selected).Sum(x => x.Amortizacion.ImportePago).ToString("C2")</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Monto Programado</MudText>
+                        </div>
+                        <div class="text-center">
+                            <MudText Typo="Typo.h5" Color="Color.Success" Style="font-weight: 700;">@_loteAmortizacionesPorTipo.Where(x => x.Selected).Sum(x => x.MontoAplicar).ToString("C2")</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Monto a Aplicar</MudText>
+                        </div>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+
+            <!-- Grilla interactiva de Conciliación -->
+            <MudPaper Outlined="true" Class="pa-4" Style="border-radius: 12px;">
+                <MudGrid Spacing="2" Class="mb-2 align-center">
+                    <MudItem xs="12" md="6">
+                        <MudTextField @bind-Value="_loteSearchString" Placeholder="Buscar por folio, empleado o empresa..."
+                                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" />
+                    </MudItem>
+                    <MudItem xs="12" md="6" Class="d-flex justify-end gap-2 align-center flex-wrap">
+                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                            Filtrados: @_filtradosSeleccionados / @_totalFiltrados
+                        </MudChip>
+                        <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">
+                            Monto: @_montoFiltradoSeleccionado.ToString("C2") / @_montoFiltradoProgramado.ToString("C2")
+                        </MudChip>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.DoneAll"
+                                   OnClick="SeleccionarTodoFiltrado">
+                            Seleccionar filtrados
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.CleaningServices"
+                                   OnClick="AplicarImporteProgramadoSeleccionados"
+                                   Disabled="!_loteAmortizacionesSeleccionadas.Any()">
+                            Igualar seleccionados
+                        </MudButton>
+                        <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Filled.ClearAll"
+                                   OnClick="LimpiarSeleccionLote"
+                                   Disabled="!_loteAmortizacionesSeleccionadas.Any()">
+                            Limpiar selección
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+
+                <MudDataGrid T="LoteCobroItem" Items="_loteAmortizacionesPorTipo" Dense="true" Hover="true" Striped="true" Bordered="false"
+                             QuickFilter="@_quickFilterLote" RowsPerPage="12" Style="border-radius: 8px;">
+                    <Columns>
+                        <TemplateColumn Title="Sel" CellStyle="width: 70px;">
+                            <CellTemplate>
+                                <MudCheckBox T="bool" Value="@context.Item.Selected" ValueChanged="@(v => SetLoteItemSelection(context.Item, v))" />
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Folio">
+                            <CellTemplate>@context.Item.Amortizacion.Folio</CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Empleado">
+                            <CellTemplate>@context.Item.Amortizacion.EmpleadoNombre</CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Empresa">
+                            <CellTemplate>@context.Item.Amortizacion.EmpresaNombre</CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Tipo" CellStyle="width: 100px;">
+                            <CellTemplate>
+                                @if (context.Item.Amortizacion.EsPrestamoDirecto)
+                                {
+                                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Text">Directo</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Text">Nómina</MudChip>
+                                }
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Pago # / Concepto" CellStyle="width: 160px;">
+                            <CellTemplate>
+                                @if (context.Item.Amortizacion.EsPrestamoDirecto)
+                                {
+                                    <span>@context.Item.Amortizacion.DescripcionPrestamoDirecto</span>
+                                }
+                                else
+                                {
+                                    <span>@context.Item.Amortizacion.NumeroPago</span>
+                                }
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Vencimiento" CellStyle="width: 130px;">
+                            <CellTemplate>@context.Item.Amortizacion.FechaPago.ToShortDateString()</CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Importe Programado" CellStyle="text-align: right; width: 170px;">
+                            <CellTemplate>
+                                <span style="font-weight: 700;">@context.Item.Amortizacion.ImportePago.ToString("C2")</span>
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Importe a Aplicar" CellStyle="text-align: right; width: 170px;">
+                            <CellTemplate>
+                                @if (context.Item.Amortizacion.EsPrestamoDirecto)
+                                {
+                                    <span style="font-weight: 700;">@context.Item.MontoAplicar.ToString("C2")</span>
+                                }
+                                else
+                                {
+                                    <MudNumericField T="decimal" Value="@context.Item.MontoAplicar"
+                                                     ValueChanged="@(v => OnMontoAplicarChanged(context.Item, v))"
+                                                     Variant="Variant.Text" Margin="Margin.Dense" Format="N2"
+                                                     Style="width: 120px; text-align: right;" />
+                                }
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Diferencia / Estatus" CellStyle="width: 190px;">
+                            <CellTemplate>
+                                @if (context.Item.Diferencia == 0)
+                                {
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Text">Conciliado</MudChip>
+                                }
+                                else if (context.Item.Diferencia < 0)
+                                {
+                                    <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.TrendingDown">
+                                        Menor (@context.Item.Diferencia.ToString("C2"))
+                                    </MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.TrendingUp">
+                                        Exceso (@context.Item.Diferencia.ToString("C2"))
+                                    </MudChip>
+                                }
+                            </CellTemplate>
+                        </TemplateColumn>
+                    </Columns>
+                    <PagerContent>
+                        <MudDataGridPager T="LoteCobroItem" />
+                    </PagerContent>
+                </MudDataGrid>
+
+                <div class="d-flex justify-space-between align-center mt-6 flex-wrap gap-3">
+                    <div class="d-flex gap-3 flex-wrap align-center">
+                        <MudTextField T="string" @bind-Value="_origenNominaDetalle" Label="Nombre / Concepto del Lote de Cobro" Variant="Variant.Outlined" Style="min-width: 320px; max-width: 400px;"/>
+                        <MudDatePicker Date="_fechaPagoLote" DateChanged="@(value => _fechaPagoLote = value)" Label="Fecha de Pago" Variant="Variant.Outlined" Editable="true" />
+                    </div>
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Large" 
+                               StartIcon="@Icons.Material.Filled.CheckCircle" OnClick="ConfirmarYAplicarLote"
+                               Disabled="!_loteAmortizacionesSeleccionadas.Any() || _procesandoLote">
+                        @if (_procesandoLote)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            <span>Procesando Lote...</span>
+                        }
+                        else
+                        {
+                            <span>Aplicar Lote (@_loteAmortizacionesSeleccionadas.Count)</span>
+                        }
+                    </MudButton>
+                </div>
+            </MudPaper>
+            </div>
+        </MudTabPanel>
+    </MudTabs>
+
+    @code {
+    // ---- PESTAÑA A: INDIVIDUAL ----
+    private string _buscarTexto = "";
+    private bool _buscando = false;
+    private List<PrestamoListDto>? _prestamosEncontrados = null;
+    private PrestamoListDto? _prestamoSeleccionado = null;
+    private PrestamoDetalleDto? _prestamoDetalle = null;
+    private List<AmortizacionDto> _amortizacionesPendientes = new();
+    private AmortizacionDto? _amortizacionSeleccionada = null;
+
+    private decimal _montoRecibido = 0;
+    private string _metodoPago = "Efectivo";
+    private string? _referenciaPago = "";
+    private DateTime? _fechaPagoIndividual = DateTime.Today;
+    private bool _guardandoCobro = false;
+
+    // Pago de préstamos directos (individual)
+    private PrestamoDirectoDto? _prestamoDirectoSeleccionado = null;
+    private string _metodoPagoDirecto = "Efectivo";
+    private string? _referenciaPagoDirecto = "";
+    private DateTime? _fechaPagoDirecto = DateTime.Today;
+    private bool _guardandoCobroDirecto = false;
+
+    // Distribución dinámica
+    private decimal _distInteres = 0;
+    private decimal _distCapital = 0;
+    private decimal _distExtra = 0;
+    private decimal _distPendiente = 0;
+
+    // ---- PESTAÑA B: MASIVO ----
+    private int? _loteEmpresaId;
+    private int? _loteTipoPagoId;
+    private DateTime? _loteFechaVencimiento = DateTime.Today;
+    private string _loteTipoFiltro = "Todos";
+    private DateTime? _fechaPagoLote = DateTime.Today;
+    private string _origenNominaDetalle = $"Nómina {DateTime.Today:MMMM yyyy}";
+    private string _loteSearchString = "";
+
+    private const string LoteEmpresaStorageKey = "cobros.lote.empresaId";
+    private const string LoteTipoPagoStorageKey = "cobros.lote.tipoPagoId";
+    private const string LoteFechaStorageKey = "cobros.lote.fechaVencimiento";
+    private const string LoteTipoFiltroStorageKey = "cobros.lote.tipoFiltro";
+
+    private List<EmpresaListDto> _empresas = new();
+    private List<TipoPagoDto> _tiposPago = new();
+    private List<LoteCobroItem> _loteAmortizaciones = new();
+    private HashSet<LoteCobroItem> _loteAmortizacionesSeleccionadas = new();
+    private bool _procesandoLote = false;
+
+    public class LoteCobroItem
+    {
+        public AmortizacionPendienteDto Amortizacion { get; set; } = null!;
+        public decimal MontoAplicar { get; set; }
+        public decimal Diferencia { get; set; }
+        public bool Selected { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Cargar catálogos
+        _empresas = await EmpresasApi.GetEmpresasAsync();
+        _tiposPago = await CatalogosApi.GetTiposPagoAsync();
+
+        await CargarPreferenciasLoteAsync();
+    }
+
+    private async Task OnLoteEmpresaChanged(int? value)
+    {
+        _loteEmpresaId = value;
+        await GuardarPreferenciasLoteAsync();
+    }
+
+    private async Task OnLoteTipoPagoChanged(int? value)
+    {
+        _loteTipoPagoId = value;
+        await GuardarPreferenciasLoteAsync();
+    }
+
+    private async Task OnLoteFechaVencimientoChanged(DateTime? value)
+    {
+        _loteFechaVencimiento = value;
+        await GuardarPreferenciasLoteAsync();
+    }
+
+    private async Task OnLoteTipoFiltroChanged(string value)
+    {
+        _loteTipoFiltro = value;
+        SincronizarSeleccionLoteVisible();
+        await GuardarPreferenciasLoteAsync();
+        StateHasChanged();
+    }
+
+    private async Task CargarPreferenciasLoteAsync()
+    {
+        try
+        {
+            var empresaIdStr = await JS.InvokeAsync<string?>("localStorage.getItem", LoteEmpresaStorageKey);
+            if (int.TryParse(empresaIdStr, out var empresaId))
+            {
+                _loteEmpresaId = empresaId;
+            }
+
+            var tipoPagoIdStr = await JS.InvokeAsync<string?>("localStorage.getItem", LoteTipoPagoStorageKey);
+            if (int.TryParse(tipoPagoIdStr, out var tipoPagoId))
+            {
+                _loteTipoPagoId = tipoPagoId;
+            }
+
+            var fechaStr = await JS.InvokeAsync<string?>("localStorage.getItem", LoteFechaStorageKey);
+            if (DateTime.TryParse(fechaStr, out var fecha))
+            {
+                _loteFechaVencimiento = fecha;
+            }
+
+            var tipoFiltroStr = await JS.InvokeAsync<string?>("localStorage.getItem", LoteTipoFiltroStorageKey);
+            if (!string.IsNullOrWhiteSpace(tipoFiltroStr))
+            {
+                _loteTipoFiltro = tipoFiltroStr;
+            }
+        }
+        catch (JSException)
+        {
+            // Ignorar errores de almacenamiento y continuar con valores por defecto.
+        }
+    }
+
+    private async Task GuardarPreferenciasLoteAsync()
+    {
+        try
+        {
+            if (_loteEmpresaId.HasValue)
+                await JS.InvokeVoidAsync("localStorage.setItem", LoteEmpresaStorageKey, _loteEmpresaId.Value.ToString());
+            else
+                await JS.InvokeVoidAsync("localStorage.removeItem", LoteEmpresaStorageKey);
+
+            if (_loteTipoPagoId.HasValue)
+                await JS.InvokeVoidAsync("localStorage.setItem", LoteTipoPagoStorageKey, _loteTipoPagoId.Value.ToString());
+            else
+                await JS.InvokeVoidAsync("localStorage.removeItem", LoteTipoPagoStorageKey);
+
+            if (_loteFechaVencimiento.HasValue)
+                await JS.InvokeVoidAsync("localStorage.setItem", LoteFechaStorageKey, _loteFechaVencimiento.Value.ToString("yyyy-MM-dd"));
+            else
+                await JS.InvokeVoidAsync("localStorage.removeItem", LoteFechaStorageKey);
+
+            await JS.InvokeVoidAsync("localStorage.setItem", LoteTipoFiltroStorageKey, _loteTipoFiltro);
+        }
+        catch (JSException)
+        {
+            // Ignorar errores de almacenamiento no bloqueantes.
+        }
+    }
+
+    private async Task BuscarPrestamos()
+    {
+        if (string.IsNullOrWhiteSpace(_buscarTexto))
+        {
+            Snackbar.Add("Por favor ingrese un criterio de búsqueda.", Severity.Warning);
+            return;
+        }
+
+        _buscando = true;
+        _prestamosEncontrados = null;
+        _prestamoSeleccionado = null;
+        _prestamoDetalle = null;
+        _amortizacionesPendientes.Clear();
+        _amortizacionSeleccionada = null;
+        _prestamoDirectoSeleccionado = null;
+
+        try
+        {
+            var todos = await PrestamosApi.GetTodosAsync();
+            // Filtrar en frontend por ID empleado, nombre o folio
+            _prestamosEncontrados = todos.Where(p => 
+                p.Estado == "A" && (
+                p.NombreEmpleado.Contains(_buscarTexto, StringComparison.OrdinalIgnoreCase) ||
+                p.PrestamoId.ToString() == _buscarTexto ||
+                (p.Folio != null && p.Folio.Contains(_buscarTexto, StringComparison.OrdinalIgnoreCase))
+            )).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al buscar préstamos: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _buscando = false;
+        }
+    }
+
+    private async Task OnSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await BuscarPrestamos();
+        }
+    }
+
+    private async Task OnPrestamoSelected(PrestamoListDto val)
+    {
+        _prestamoSeleccionado = val;
+        if (val != null)
+        {
+            _prestamoDetalle = await PrestamosApi.GetByIdAsync(val.PrestamoId);
+            if (_prestamoDetalle != null)
+            {
+                // Ordenar amortizaciones pendientes
+                _amortizacionesPendientes = _prestamoDetalle.TablaAmortizacion
+                    .Where(a => !a.Pagado)
+                    .OrderBy(a => a.NumeroPago)
+                    .ToList();
+            }
+        }
+    }
+
+    private void SeleccionarParaPagar(AmortizacionDto amort)
+    {
+        _amortizacionSeleccionada = amort;
+        _prestamoDirectoSeleccionado = null;
+        _montoRecibido = amort.ImportePago;
+        _metodoPago = "Efectivo";
+        _referenciaPago = "";
+        _fechaPagoIndividual = DateTime.Today;
+        RecalcularDistribucion();
+    }
+
+    private void OnAmortizacionSelected(AmortizacionDto val)
+    {
+        if (val != null)
+        {
+            SeleccionarParaPagar(val);
+        }
+    }
+
+    private void OnMontoRecibidoChanged()
+    {
+        RecalcularDistribucion();
+    }
+
+    private void RecalcularDistribucion()
+    {
+        if (_amortizacionSeleccionada == null) return;
+
+        decimal totalRequerido = _amortizacionSeleccionada.ImportePago;
+        decimal interesRequerido = _amortizacionSeleccionada.ImporteInteres;
+        decimal capitalRequerido = _amortizacionSeleccionada.ImporteCapital;
+
+        decimal remanente = _montoRecibido;
+
+        // 1. Interés primero
+        if (remanente >= interesRequerido)
+        {
+            _distInteres = interesRequerido;
+            remanente -= interesRequerido;
+        }
+        else
+        {
+            _distInteres = remanente;
+            remanente = 0;
+        }
+
+        // 2. Capital programado
+        if (remanente >= capitalRequerido)
+        {
+            _distCapital = capitalRequerido;
+            remanente -= capitalRequerido;
+        }
+        else
+        {
+            _distCapital = remanente;
+            remanente = 0;
+        }
+
+        // 3. Remanente a pago extra a capital
+        _distExtra = remanente;
+
+        // 4. Pendiente de la cuota
+        decimal totalAplicadoACuotaProgramada = _distInteres + _distCapital;
+        _distPendiente = Math.Max(0, totalRequerido - totalAplicadoACuotaProgramada);
+    }
+
+    private async Task AplicarCobroIndividual()
+    {
+        if (_amortizacionSeleccionada == null || _prestamoDetalle == null) return;
+
+        if (_montoRecibido <= 0)
+        {
+            Snackbar.Add("El monto recibido debe ser mayor a cero.", Severity.Warning);
+            return;
+        }
+
+        _guardandoCobro = true;
+        try
+        {
+            var command = new AplicarPagoIndividualCommand
+            {
+                PrestamoId = _prestamoDetalle.Id,
+                NumeroPago = _amortizacionSeleccionada.NumeroPago,
+                MontoRecibido = _montoRecibido,
+                MetodoPago = _metodoPago,
+                Referencia = _referenciaPago,
+                FechaPago = _fechaPagoIndividual ?? DateTime.Today
+            };
+
+            var response = await CobrosApi.AplicarPagoIndividualAsync(command);
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("¡Cobro aplicado exitosamente!", Severity.Success);
+                
+                // Recargar el préstamo y sus amortizaciones
+                if (_prestamoSeleccionado != null)
+                {
+                    await OnPrestamoSelected(_prestamoSeleccionado);
+                }
+                
+                _amortizacionSeleccionada = null;
+            }
+            else
+            {
+                var errorText = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Error al aplicar pago: {errorText}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _guardandoCobro = false;
+        }
+    }
+
+    private string GetAmortizacionRowStyle(AmortizacionDto item, int rowNumber)
+    {
+        if (_amortizacionSeleccionada != null && item.NumeroPago == _amortizacionSeleccionada.NumeroPago)
+        {
+            return "background-color: var(--mud-palette-primary-lighten); font-weight: bold;";
+        }
+        return "";
+    }
+
+    private string GetDirectoRowStyle(PrestamoDirectoDto item, int rowNumber)
+    {
+        if (_prestamoDirectoSeleccionado != null && item.NumPrestamoDirecto == _prestamoDirectoSeleccionado.NumPrestamoDirecto)
+        {
+            return "background-color: var(--mud-palette-warning-lighten); font-weight: bold;";
+        }
+        return "";
+    }
+
+    private void OnDirectoSelected(PrestamoDirectoDto val)
+    {
+        if (val != null && !val.StatusPago)
+        {
+            SeleccionarDirectoParaPagar(val);
+        }
+    }
+
+    private void SeleccionarDirectoParaPagar(PrestamoDirectoDto directo)
+    {
+        _prestamoDirectoSeleccionado = directo;
+        _metodoPagoDirecto = "Efectivo";
+        _referenciaPagoDirecto = "";
+        _fechaPagoDirecto = DateTime.Today;
+        _amortizacionSeleccionada = null;
+    }
+
+    private async Task AplicarCobroDirecto()
+    {
+        if (_prestamoDirectoSeleccionado == null || _prestamoDetalle == null) return;
+
+        _guardandoCobroDirecto = true;
+        try
+        {
+            var command = new AplicarPagoIndividualCommand
+            {
+                PrestamoId = _prestamoDetalle.Id,
+                EsPrestamoDirecto = true,
+                PrestamoDirectoId = _prestamoDirectoSeleccionado.NumPrestamoDirecto,
+                MontoRecibido = _prestamoDirectoSeleccionado.TotalCapitalInteres,
+                MetodoPago = _metodoPagoDirecto,
+                Referencia = _referenciaPagoDirecto,
+                FechaPago = _fechaPagoDirecto ?? DateTime.Today
+            };
+
+            var response = await CobrosApi.AplicarPagoIndividualAsync(command);
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("¡Pago de préstamo directo aplicado exitosamente!", Severity.Success);
+
+                if (_prestamoSeleccionado != null)
+                {
+                    await OnPrestamoSelected(_prestamoSeleccionado);
+                }
+
+                _prestamoDirectoSeleccionado = null;
+            }
+            else
+            {
+                var errorText = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Error al aplicar pago directo: {errorText}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _guardandoCobroDirecto = false;
+        }
+    }
+
+    // ---- SECCIÓN PAGO MASIVO ----
+    private async Task CargarLoteCobro()
+    {
+        _loteAmortizaciones.Clear();
+        _loteAmortizacionesSeleccionadas.Clear();
+        
+        try
+        {
+            var pendientes = await CobrosApi.GetPendientesAsync(_loteEmpresaId, _loteTipoPagoId, _loteFechaVencimiento);
+            _loteAmortizaciones = pendientes.Select(p => new LoteCobroItem
+            {
+                Amortizacion = p,
+                MontoAplicar = p.ImportePago,
+                Diferencia = 0,
+                Selected = false
+            }).ToList();
+
+            Snackbar.Add($"Se cargaron {_loteAmortizacionesPorTipo.Count()} registros para el filtro seleccionado.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar amortizaciones: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private IEnumerable<LoteCobroItem> _loteAmortizacionesPorTipo => _loteAmortizaciones.Where(CumpleFiltroTipoLote);
+
+    private bool CumpleFiltroTipoLote(LoteCobroItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        return _loteTipoFiltro switch
+        {
+            "Nomina" => !item.Amortizacion.EsPrestamoDirecto,
+            "Directo" => item.Amortizacion.EsPrestamoDirecto,
+            _ => true
+        };
+    }
+
+    private Func<LoteCobroItem, bool> _quickFilterLote => x =>
+    {
+        if (string.IsNullOrWhiteSpace(_loteSearchString)) return true;
+
+        if (!string.IsNullOrWhiteSpace(x.Amortizacion.Folio) && x.Amortizacion.Folio.Contains(_loteSearchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (x.Amortizacion.EmpleadoNombre.Contains(_loteSearchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (x.Amortizacion.EmpresaNombre.Contains(_loteSearchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if (x.Amortizacion.EsPrestamoDirecto && !string.IsNullOrWhiteSpace(x.Amortizacion.DescripcionPrestamoDirecto) &&
+            x.Amortizacion.DescripcionPrestamoDirecto.Contains(_loteSearchString, StringComparison.OrdinalIgnoreCase)) return true;
+        if ($"{x.Amortizacion.NumeroPago}".Contains(_loteSearchString, StringComparison.OrdinalIgnoreCase)) return true;
+
+        return false;
+    };
+
+    private int _totalFiltrados => _loteAmortizacionesPorTipo.Count(_quickFilterLote);
+    private int _filtradosSeleccionados => _loteAmortizacionesPorTipo.Count(x => x.Selected && _quickFilterLote(x));
+    private decimal _montoFiltradoProgramado => _loteAmortizacionesPorTipo.Where(_quickFilterLote).Sum(x => x.Amortizacion.ImportePago);
+    private decimal _montoFiltradoSeleccionado => _loteAmortizacionesPorTipo.Where(x => x.Selected && _quickFilterLote(x)).Sum(x => x.MontoAplicar);
+
+    private void SetLoteItemSelection(LoteCobroItem item, bool selected)
+    {
+        item.Selected = selected;
+        if (selected)
+        {
+            _loteAmortizacionesSeleccionadas.Add(item);
+        }
+        else
+        {
+            _loteAmortizacionesSeleccionadas.Remove(item);
+        }
+    }
+
+    private void SincronizarSeleccionLoteVisible()
+    {
+        var visibles = _loteAmortizacionesPorTipo.ToHashSet();
+        var ocultosSeleccionados = _loteAmortizacionesSeleccionadas.Where(x => !visibles.Contains(x)).ToList();
+
+        foreach (var item in ocultosSeleccionados)
+        {
+            item.Selected = false;
+            _loteAmortizacionesSeleccionadas.Remove(item);
+        }
+    }
+
+    private void OnMontoAplicarChanged(LoteCobroItem item, decimal value)
+    {
+        item.MontoAplicar = value;
+        RecalcularDiferenciaItem(item);
+    }
+
+    private void SeleccionarTodoFiltrado()
+    {
+        foreach (var item in _loteAmortizacionesPorTipo.Where(_quickFilterLote))
+        {
+            item.Selected = true;
+            _loteAmortizacionesSeleccionadas.Add(item);
+        }
+    }
+
+    private void LimpiarSeleccionLote()
+    {
+        foreach (var item in _loteAmortizaciones)
+        {
+            item.Selected = false;
+        }
+
+        _loteAmortizacionesSeleccionadas.Clear();
+    }
+
+    private void AplicarImporteProgramadoSeleccionados()
+    {
+        foreach (var item in _loteAmortizacionesSeleccionadas)
+        {
+            item.MontoAplicar = item.Amortizacion.ImportePago;
+            item.Diferencia = 0;
+        }
+    }
+
+    private void RecalcularDiferenciaItem(LoteCobroItem item)
+    {
+        item.Diferencia = item.MontoAplicar - item.Amortizacion.ImportePago;
+    }
+
+    private async Task ConfirmarYAplicarLote()
+    {
+        if (!_loteAmortizacionesSeleccionadas.Any()) return;
+
+        if (string.IsNullOrWhiteSpace(_origenNominaDetalle))
+        {
+            Snackbar.Add("Capture el nombre o concepto del lote de cobro.", Severity.Warning);
+            return;
+        }
+
+        if (!_fechaPagoLote.HasValue)
+        {
+            Snackbar.Add("Capture la fecha de pago del lote.", Severity.Warning);
+            return;
+        }
+
+        if (_loteAmortizacionesSeleccionadas.Any(x => x.MontoAplicar <= 0))
+        {
+            Snackbar.Add("Todos los importes seleccionados deben ser mayores a cero.", Severity.Warning);
+            return;
+        }
+
+        var cntNomina = _loteAmortizacionesSeleccionadas.Count(x => !x.Amortizacion.EsPrestamoDirecto);
+        var cntDirecto = _loteAmortizacionesSeleccionadas.Count(x => x.Amortizacion.EsPrestamoDirecto);
+        var totalMonto = _loteAmortizacionesSeleccionadas.Sum(x => x.MontoAplicar);
+
+        var detalle = new System.Text.StringBuilder();
+        detalle.AppendLine($"Total de registros: {_loteAmortizacionesSeleccionadas.Count}");
+        if (cntNomina > 0) detalle.AppendLine($"  • Nómina: {cntNomina} amortización(es)");
+        if (cntDirecto > 0) detalle.AppendLine($"  • Directos: {cntDirecto} préstamo(s)");
+        detalle.Append($"Monto total a aplicar: {totalMonto.ToString("C2")}");
+
+        bool? confirm = await DialogService.ShowMessageBoxAsync(
+            "Confirmación de Cobranza Masiva",
+            $"¿Está seguro de aplicar el pago para los siguientes registros?\n\n{detalle}",
+            yesText: "Sí, Aplicar Pago", cancelText: "Cancelar");
+
+        if (confirm != true) return;
+
+        // Determinar método de pago: Nomina cuando hay amortizaciones, Efectivo si son solo directos
+        var metodoPago = cntNomina > 0 ? "Nomina" : "Efectivo";
+
+        _procesandoLote = true;
+        try
+        {
+            var command = new AplicarPagoMasivoCommand
+            {
+                OrigenNomina = _origenNominaDetalle,
+                MetodoPago = metodoPago,
+                FechaCobro = _fechaPagoLote.Value,
+                Detalles = _loteAmortizacionesSeleccionadas.Select(x => new DetallePagoMasivoDto
+                {
+                    PrestamoId = x.Amortizacion.PrestamoId,
+                    NumeroPago = x.Amortizacion.EsPrestamoDirecto ? null : x.Amortizacion.NumeroPago,
+                    AmortizacionId = x.Amortizacion.EsPrestamoDirecto ? null : (x.Amortizacion.AmortizacionId > 0 ? x.Amortizacion.AmortizacionId : (int?)null),
+                    EsPrestamoDirecto = x.Amortizacion.EsPrestamoDirecto,
+                    PrestamoDirectoId = x.Amortizacion.EsPrestamoDirecto ? x.Amortizacion.PrestamoDirectoId : null,
+                    MontoAplicado = x.MontoAplicar
+                }).ToList()
+            };
+
+            var response = await CobrosApi.AplicarPagoMasivoAsync(command);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<BulkPaymentResultDto>();
+                if (result != null)
+                {
+                    if (result.Fallidos == 0)
+                    {
+                        Snackbar.Add($"¡Lote de cobros aplicado con éxito! Procesados: {result.Exitosos}", Severity.Success);
+                    }
+                    else
+                    {
+                        var errores = result.DetallesErrores?.Where(x => !string.IsNullOrWhiteSpace(x)).ToList() ?? new List<string>();
+                        var errorMsg = errores.Count > 0
+                            ? string.Join("\n", errores)
+                            : "No se recibieron detalles de validación desde el servidor.";
+
+                        Snackbar.Add($"El lote no se aplicó debido a {result.Fallidos} errores de validación.", Severity.Error);
+                        await DialogService.ShowMessageBoxAsync("Errores en Lote", errorMsg, yesText: "Entendido");
+                    }
+                }
+                
+                await CargarLoteCobro(); // Refrescar la grilla
+            }
+            else
+            {
+                var errorText = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Error al aplicar lote masivo: {errorText}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al procesar el lote: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _procesandoLote = false;
+        }
+    }
+}

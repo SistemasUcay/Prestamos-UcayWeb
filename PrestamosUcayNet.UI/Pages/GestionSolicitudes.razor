@@ -25,41 +25,46 @@
     }
     else
     {
-        <MudDataGrid Items="@_prestamos" Filterable="true" SortMode="SortMode.Multiple" Hover="true" Bordered="true" Striped="true">
+        <MudDataGrid Items="@_prestamos" Filterable="true" SortMode="SortMode.Multiple" Hover="true" Bordered="true" Striped="true" Dense="true">
             <Columns>
+                <TemplateColumn Title="Acciones" CellClass="d-flex justify-end gap-1">
+                    <CellTemplate>
+                        <MudTooltip Text="Ver formato imprimible">
+                            <MudIconButton Size="@Size.Small"
+                                           Icon="@Icons.Material.Outlined.PictureAsPdf"
+                                           Color="@Color.Default"
+                                           OnClick="@(() => VerSolicitudImprimible(context.Item))"
+                                           Style="border-radius: 8px;" />
+                        </MudTooltip>
+                        <MudTooltip Text="Editar solicitud">
+                            <MudIconButton Size="@Size.Small"
+                                           Icon="@Icons.Material.Outlined.Edit"
+                                           Color="@Color.Default"
+                                           OnClick="@(() => EditarSolicitud(context.Item))"
+                                           Style="border-radius: 8px;" />
+                        </MudTooltip>
+                        <MudTooltip Text="Revisar solicitud">
+                            <MudIconButton Size="@Size.Small"
+                                           Icon="@Icons.Material.Outlined.RateReview"
+                                           Color="@Color.Primary"
+                                           OnClick="@(() => AbrirRevision(context.Item))"
+                                           Style="border-radius: 8px;" />
+                        </MudTooltip>
+                    </CellTemplate>
+                </TemplateColumn>
+                <PropertyColumn Property="x => x.PrestamoId" Title="ID" />
                 <PropertyColumn Property="x => x.FechaSolicitud" Title="Fecha" Format="dd/MM/yyyy" />
                 <PropertyColumn Property="x => x.NombreEmpleado" Title="Empleado" />
-                <PropertyColumn Property="x => x.NombreFondeadora" Title="Fondeadora" />
+                <PropertyColumn Property="x => x.NombreCortoFondeadora" Title="Fondeadora" />
                 <PropertyColumn Property="x => x.TipoPrestamoDescripcion" Title="Tipo Préstamo" />
-                <PropertyColumn Property="x => x.MontoAprobado" Title="Monto" Format="C2" />
-                <PropertyColumn Property="x => x.PlazoMeses" Title="Plazo (Meses)" />
+                <PropertyColumn Property="x => x.MontoAprobado" Title="Monto Préstamo" Format="C2" />
+                <PropertyColumn Property="x => x.TotalPrestamosDirectos" Title="Directos" Format="C2" />
+                <PropertyColumn Property="x => x.TotalGeneral" Title="Total" Format="C2" />
                 <TemplateColumn Title="Estado" CellStyle="width: 130px;">
                     <CellTemplate>
                         <MudChip T="string" Size="Size.Small" Color="@ObtenerColorEstadoPrestamo(context.Item.Estado)">
                             @ObtenerDescripcionEstado(context.Item.Estado)
                         </MudChip>
-                    </CellTemplate>
-                </TemplateColumn>
-                <TemplateColumn Title="Acciones" CellClass="d-flex justify-end gap-1">
-                    <CellTemplate>
-                        <MudIconButton Size="@Size.Small" 
-                                       Icon="@Icons.Material.Outlined.PictureAsPdf" 
-                                       Color="@Color.Default"
-                                       OnClick="@(() => VerSolicitudImprimible(context.Item))" 
-                                       Title="Ver formato imprimible"
-                                       Style="border-radius: 8px;" />
-                        <MudIconButton Size="@Size.Small" 
-                                       Icon="@Icons.Material.Outlined.Edit" 
-                                       Color="@Color.Default"
-                                       OnClick="@(() => EditarSolicitud(context.Item))" 
-                                       Title="Editar solicitud"
-                                       Style="border-radius: 8px;" />
-                        <MudIconButton Size="@Size.Small" 
-                                       Icon="@Icons.Material.Outlined.RateReview" 
-                                       Color="@Color.Primary"
-                                       OnClick="@(() => AbrirRevision(context.Item))" 
-                                       Title="Revisar solicitud"
-                                       Style="border-radius: 8px;" />
                     </CellTemplate>
                 </TemplateColumn>
             </Columns>
@@ -73,61 +78,171 @@
 @if (_revisionVisible && _selectedPrestamo != null)
 {
     <MudOverlay @onclick="@CerrarDialog" Visible="true" DarkBackground="true" ZIndex="9998" />
-    <MudPaper Style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999; max-width: 800px; width: 90%; max-height: 90vh; overflow-y: auto;" Elevation="24">
-        <MudToolBar>
-            <MudText Typo="Typo.h6">Revisión de Préstamo #@_selectedPrestamo.PrestamoId</MudText>
+    
+    <MudPaper Style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999; max-width: 760px; width: 85%; max-height: 80vh; overflow-y: auto; border-radius: 12px;" Elevation="20">
+        <MudToolBar Style="border-radius: 12px 12px 0 0; min-height: 52px;">
+            <MudIcon Icon="@Icons.Material.Filled.Assignment" Size="Size.Large" Class="mr-2" />
+            <MudText Typo="Typo.h6" Style="font-weight: 600;">Revisión de Préstamo #@_selectedPrestamo.PrestamoId</MudText>
             <MudSpacer />
-            <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Default" OnClick="@CerrarDialog" />
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Inherit" OnClick="@CerrarDialog" />
         </MudToolBar>
 
-        <MudContainer Style="padding: 24px;">
-            <MudGrid>
-                <MudItem xs="12" sm="6">
-                    <MudText Typo="Typo.subtitle2">Empleado</MudText>
-                    <MudText Typo="Typo.body1">@_selectedPrestamo.NombreEmpleado</MudText>
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudText Typo="Typo.subtitle2">Fondeadora</MudText>
-                    <MudText Typo="Typo.body1">@_selectedPrestamo.NombreFondeadora</MudText>
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudText Typo="Typo.subtitle2">Monto Aprobado</MudText>
-                    <MudText Typo="Typo.h6" Color="Color.Primary">@_selectedPrestamo.MontoAprobado.ToString("C2")</MudText>
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudText Typo="Typo.subtitle2">Plazo</MudText>
-                    <MudText Typo="Typo.body1">@_selectedPrestamo.PlazoMeses meses</MudText>
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudText Typo="Typo.subtitle2">Tipo de Préstamo</MudText>
-                    <MudText Typo="Typo.body1">@_selectedPrestamo.TipoPrestamoDescripcion</MudText>
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudText Typo="Typo.subtitle2">Tipo de Pago</MudText>
-                    <MudText Typo="Typo.body1">@_selectedPrestamo.TipoPagoDescripcion</MudText>
-                </MudItem>
+        <MudContainer Style="padding: 16px;">
+            <!-- Información del Préstamo Principal -->
+            <MudCard Elevation="2" Style="margin-bottom: 20px; border-radius: 12px;">
+                <MudCardContent>
+                    <MudGrid>
+                        <MudItem xs="12">
+                            <MudText Typo="Typo.h5" Color="Color.Primary" Style="margin-bottom: 10px; display: flex; align-items: center;">
+                                <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Class="mr-2" />
+                                Préstamo Nómina
+                            </MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="5">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Empleado</MudText>
+                            <MudText Typo="Typo.body1" Style="font-weight: 500;">@_selectedPrestamo.NombreEmpleado</MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="2">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Fondeadora</MudText>
+                            <MudText Typo="Typo.body1" Style="font-weight: 500;">@_selectedPrestamo.NombreCortoFondeadora</MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Monto Aprobado</MudText>
+                            <MudText Typo="Typo.h6" Color="Color.Primary" Style="font-weight: 700;">@_selectedPrestamo.MontoAprobado.ToString("C2")</MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="2">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Plazo</MudText>
+                            <MudText Typo="Typo.body1" Style="font-weight: 500;">@_selectedPrestamo.PlazoMeses meses</MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Tipo de Préstamo</MudText>
+                            <MudText Typo="Typo.body1" Style="font-weight: 500;">@_selectedPrestamo.TipoPrestamoDescripcion</MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Tipo de Pago</MudText>
+                            <MudText Typo="Typo.body1" Style="font-weight: 500;">@_selectedPrestamo.TipoPagoDescripcion</MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Entrega</MudText>
+                            <MudText Typo="Typo.body1" Style="margin-top: 4px;">
+                                @if (_selectedPrestamo.FechaDeposito.HasValue)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.Event" Size="Size.Small" Style="vertical-align: middle; margin-right: 4px;" />
+                                    <span>@_selectedPrestamo.FechaDeposito.Value.ToString("dd/MM/yyyy")</span>
+                                }
+                                else
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Default">
+                                        Pendiente</MudText>
+                                }
+                            </MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Final de Descuento</MudText>
+                            <MudText Typo="Typo.body1" Style="margin-top: 4px;">
+                                @if (_selectedPrestamo.FinalDescuento.HasValue)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.Event" Size="Size.Small" Style="vertical-align: middle; margin-right: 4px;" />
+                                    <span>@_selectedPrestamo.FinalDescuento.Value.ToString("dd/MM/yyyy")</span>
+                                }
+                                else
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Default">
+                                        N/A</MudText>
+                                }
+                            </MudText>
+                        </MudItem>
+                    </MudGrid>
+                </MudCardContent>
+            </MudCard>
 
-                <MudItem xs="12">
-                    <MudDivider Class="my-4" />
-                    <MudTextField T="string" Label="Notas / Motivo (Requerido para rechazo/cancelación)" 
-                                  @bind-Value="_notasRevision" Lines="3" Variant="Variant.Outlined" />
-                </MudItem>
-            </MudGrid>
+            <!-- Préstamos Directos -->
+            <MudCard Elevation="2" Style="margin-bottom: 20px; border-radius: 12px;">
+                <MudCardContent>
+                    <MudGrid>
+                        <MudItem xs="12">
+                            <MudText Typo="Typo.h5" Color="Color.Primary" Style="margin-bottom: 0px; display: flex; align-items: center;">
+                                <MudIcon Icon="@Icons.Material.Filled.AttachMoney" Class="mr-2" />
+                                Préstamos Directos (@_selectedPrestamo.PrestamosDirectos.Count) - Total: @_selectedPrestamo.TotalPrestamosDirectos.ToString("C2")
+                            </MudText>                            
+                        </MudItem>
+                        @if (_selectedPrestamo.PrestamosDirectos?.Count > 0)
+                        {
+                            <MudItem xs="12">
+                                <div style="margin-top: 0px; max-height: 150px; overflow-y: auto; border-radius: 8px; border: 1px solid var(--mud-palette-lines-default);">
+                                    <MudTable Items="@_selectedPrestamo.PrestamosDirectos" Dense="true" Hover="true" Bordered="false" Striped="true" Elevation="0">
+                                        <HeaderContent>
+                                            <MudTh Style="font-weight: 600; background-color: var(--mud-palette-background-grey);">Descripción</MudTh>
+                                            <MudTh Style="text-align:right; font-weight: 600; background-color: var(--mud-palette-background-grey);">Monto</MudTh>
+                                            <MudTh Style="text-align:center; font-weight: 600; background-color: var(--mud-palette-background-grey);">Fecha Pago</MudTh>
+                                        </HeaderContent>
+                                        <RowTemplate>
+                                            <MudTd DataLabel="Descripción">
+                                                <MudText Typo="Typo.body2">@context.Descripcion</MudText>
+                                            </MudTd>
+                                            <MudTd DataLabel="Monto" Style="text-align:right;">
+                                                <MudText Typo="Typo.body2" Style="font-weight:600; color: var(--mud-palette-primary);">@context.MontoSolicitado.ToString("C2")</MudText>
+                                            </MudTd>
+                                            <MudTd DataLabel="Fecha Pago" Style="text-align:center;">
+                                                <MudText Typo="Typo.body2" Style="font-weight:600; color: var(--mud-palette-primary);">@context.FechaPago.ToString("dd/MM/yyyy")</MudText>
+                                            </MudTd>
+                                        </RowTemplate>
+                                    </MudTable>
+                                </div>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                </MudCardContent>
+            </MudCard>
+
+            <!-- Total General -->
+            <MudCard Elevation="3" Style="margin-bottom: 12px; border-radius: 10px; background: linear-gradient(135deg, var(--mud-palette-success-lighten) 0%, var(--mud-palette-success) 100%);">
+                <MudCardContent>
+                    <MudGrid Justify="Justify.SpaceBetween">
+                        <MudItem>
+                            <MudText Typo="Typo.h6" Style="color: white; display: flex; align-items: center;">
+                                <MudIcon Icon="@Icons.Material.Filled.Calculate" Class="mr-2" />
+                                Total General
+                            </MudText>
+                        </MudItem>
+                        <MudItem>
+                            <MudText Typo="Typo.h4" Style="color: white; font-weight: 700;">@_selectedPrestamo.TotalGeneral.ToString("C2")</MudText>
+                        </MudItem>
+                    </MudGrid>
+                </MudCardContent>
+            </MudCard>
+
+            <!-- Notas -->
+            <MudCard Elevation="2" Style="border-radius: 10px;">
+                <MudCardContent Style="padding: 12px;">
+                    <MudTextField T="string" Label="Notas / Motivo" 
+                                  HelperText="Requerido para rechazo o cancelación"
+                                  @bind-Value="_notasRevision" 
+                                  Lines="2" 
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Notes" />
+                </MudCardContent>
+            </MudCard>
         </MudContainer>
 
         <MudDivider />
 
-        <MudContainer Style="padding: 16px; display: flex; justify-content: space-between; align-items: center;">
-            <MudButton Variant="Variant.Text" OnClick="@CerrarDialog" Disabled="@_procesando">Cerrar</MudButton>
-            <div style="display: flex; gap: 8px;">
-                <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="@Rechazar"
-                           StartIcon="@Icons.Material.Filled.ThumbDown" Disabled="@_procesando">Rechazar</MudButton>
-                <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="@Cancelar"
-                           StartIcon="@Icons.Material.Filled.Cancel" Disabled="@_procesando">Cancelar</MudButton>
-                <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="@AprobarYEntregar"
-                           StartIcon="@Icons.Material.Filled.CheckCircle" Disabled="@_procesando">Aprobar y Entregar</MudButton>
-            </div>
-        </MudContainer>
+        <MudContainer Style="padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; background-color: var(--mud-palette-background-grey); gap: 12px;">
+            <MudButton Variant="Variant.Text" OnClick="@CerrarDialog" Disabled="@_procesando" Size="Size.Small">Cerrar</MudButton>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
+                 <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="@Rechazar"
+                            StartIcon="@Icons.Material.Filled.ThumbDown" Disabled="@_procesando" Size="Size.Small"
+                            Style="text-transform: none; border-radius: 8px;">Rechazar</MudButton>
+                 <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="@Cancelar"
+                            StartIcon="@Icons.Material.Filled.Cancel" Disabled="@_procesando" Size="Size.Small"
+                            Style="text-transform: none; border-radius: 8px;">Cancelar</MudButton>
+                 <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="@Aprobar"
+                            StartIcon="@Icons.Material.Filled.ThumbUp" Disabled="@_procesando" Size="Size.Small"
+                            Style="text-transform: none; border-radius: 8px;">Aprobar</MudButton>
+             </div>
+         </MudContainer>
     </MudPaper>
 }
 
@@ -218,7 +333,7 @@
         StateHasChanged();
     }
 
-    private async Task AprobarYEntregar()
+    private async Task Aprobar()
     {
         if (_selectedPrestamo == null) return;
 
@@ -242,7 +357,7 @@
 
             if (result)
             {
-                Snackbar.Add("Préstamo aprobado y activado exitosamente.", Severity.Success);
+                Snackbar.Add("Solicitud aprobada. Pendiente de entrega.", Severity.Success);
                 CerrarDialog();
                 await CargarPrestamos();
             }
@@ -332,6 +447,7 @@
     private static string ObtenerDescripcionEstado(string estado) => estado switch
     {
         "E" => "En Evaluación",
+        "T" => "Pendiente de Entrega",
         "A" => "Activo",
         "P" => "Pagado",
         "L" => "Liquidado",
@@ -344,6 +460,7 @@
     private static Color ObtenerColorEstadoPrestamo(string estado) => estado switch
     {
         "E" => Color.Warning,
+        "T" => Color.Primary,
         "A" => Color.Success,
         "P" or "L" => Color.Info,
         "C" => Color.Error,
