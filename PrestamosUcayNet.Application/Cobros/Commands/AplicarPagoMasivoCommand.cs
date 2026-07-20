@@ -9,6 +9,7 @@ namespace PrestamosUcayNet.Application.Cobros.Commands;
 /// </summary>
 public class AplicarPagoMasivoCommand
 {
+    public string? LoteId { get; set; }
     public string OrigenNomina { get; set; } = null!;
     public string MetodoPago { get; set; } = null!;
     public DateTime FechaCobro { get; set; }

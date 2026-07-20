@@ -36,8 +36,18 @@ public class AmortizacionPendienteDto
 
 public class BulkPaymentResultDto
 {
+    public string? LoteId { get; set; }
     public int TotalRegistros { get; set; }
     public int Exitosos { get; set; }
+    public int Fallidos { get; set; }
+    public List<string> DetallesErrores { get; set; } = new();
+}
+
+public class BulkCancelResultDto
+{
+    public string LoteId { get; set; } = string.Empty;
+    public int TotalCobros { get; set; }
+    public int Cancelados { get; set; }
     public int Fallidos { get; set; }
     public List<string> DetallesErrores { get; set; } = new();
 }
@@ -50,4 +60,22 @@ public class DetallePagoMasivoDto
     public int? PrestamoDirectoId { get; set; }
     public bool EsPrestamoDirecto { get; set; }
     public decimal MontoAplicado { get; set; }
+}
+
+public class CobroAplicadoDto
+{
+    public int CobroId { get; set; }
+    public int PrestamoId { get; set; }
+    public DateTime FechaCobro { get; set; }
+    public decimal MontoTotal { get; set; }
+    public string MetodoPago { get; set; } = null!;
+    public string? Referencia { get; set; }
+    public string? UsuarioId { get; set; }
+    public string? OrigenNomina { get; set; }
+    public string? LoteId { get; set; }
+    public bool EsPrestamoDirecto { get; set; }
+    public int? NumeroPago { get; set; }
+    public int? AmortizacionId { get; set; }
+    public int? PrestamoDirectoId { get; set; }
+    public string Concepto { get; set; } = string.Empty;
 }

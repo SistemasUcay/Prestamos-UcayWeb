@@ -275,4 +275,68 @@ public class CobrosServiceTests
         var detalle = await context.PrestamoDetallePagos.FirstOrDefaultAsync(x => x.PrestamoId == 5 && x.PrestamoDirectoId == 1);
         Assert.NotNull(detalle);
     }
+
+    [Fact]
+    public async Task CancelarCobro_Amortizacion_DebeRevertirEstadoYMontos()
+    {
+        var context = GetDbContext();
+        SeedData(context, 6);
+        var service = new CobrosService(context);
+
+        await service.AplicarPagoIndividualAsync(new AplicarPagoIndividualCommand
+        {
+            PrestamoId = 6,
+            NumeroPago = 1,
+            MontoRecibido = 1000,
+            MetodoPago = "Efectivo"
+        }, "user-test");
+
+        var cobro = await context.PrestamoCobros.SingleAsync(x => x.PrestamoId == 6);
+
+        var cancelado = await service.CancelarCobroAsync(cobro.CobroId, "user-test");
+
+        Assert.True(cancelado);
+        Assert.Empty(context.PrestamoCobros.Where(x => x.PrestamoId == 6));
+        Assert.Empty(context.PrestamoDetallePagos.Where(x => x.PrestamoId == 6));
+
+        var amortizacion = await context.PrestamosAmortizaciones.FindAsync(1);
+        Assert.NotNull(amortizacion);
+        Assert.False(amortizacion.StatusPago);
+        Assert.Equal(1000, amortizacion.ImportePago);
+        Assert.Equal(800, amortizacion.ImportePagoCapital);
+        Assert.Equal(200, amortizacion.ImportePagoInteres);
+        Assert.Equal(0, amortizacion.PagoExtraCapital);
+
+        var prestamo = await context.Prestamos.FindAsync(6);
+        Assert.NotNull(prestamo);
+        Assert.Equal(10000, prestamo.SaldoPendiente);
+    }
+
+    [Fact]
+    public async Task CancelarCobro_PrestamoDirecto_DebeRevertirEstadoDePago()
+    {
+        var context = GetDbContext();
+        SeedData(context, 7);
+        var service = new CobrosService(context);
+
+        await service.AplicarPagoIndividualAsync(new AplicarPagoIndividualCommand
+        {
+            PrestamoId = 7,
+            EsPrestamoDirecto = true,
+            PrestamoDirectoId = 1,
+            MontoRecibido = 10060,
+            MetodoPago = "Efectivo"
+        }, "user-test");
+
+        var cobro = await context.PrestamoCobros.SingleAsync(x => x.PrestamoId == 7);
+
+        var cancelado = await service.CancelarCobroAsync(cobro.CobroId, "user-test");
+
+        Assert.True(cancelado);
+
+        var directo = await context.PrestamosDirectos.FindAsync(1);
+        Assert.NotNull(directo);
+        Assert.False(directo.StatusPago);
+        Assert.Null(directo.FechaPagoReal);
+    }
 }

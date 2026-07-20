@@ -58,4 +58,36 @@ public class CobrosApiService
     {
         return await _http.PostAsJsonAsync("api/cobros/aplicar-masivo", command);
     }
+
+    /// <summary>
+    /// Obtiene cobros aplicados de un préstamo
+    /// </summary>
+    public async Task<List<CobroAplicadoDto>> GetCobrosAplicadosPorPrestamoAsync(int prestamoId)
+    {
+        return await _http.GetFromJsonAsync<List<CobroAplicadoDto>>($"api/cobros/prestamo/{prestamoId}/aplicados") ?? [];
+    }
+
+    /// <summary>
+    /// Cancela un cobro aplicado
+    /// </summary>
+    public async Task<HttpResponseMessage> CancelarCobroAsync(int cobroId)
+    {
+        return await _http.DeleteAsync($"api/cobros/cancelar/{cobroId}");
+    }
+
+    /// <summary>
+    /// Obtiene cobros aplicados de un lote
+    /// </summary>
+    public async Task<List<CobroAplicadoDto>> GetCobrosAplicadosPorLoteAsync(string loteId)
+    {
+        return await _http.GetFromJsonAsync<List<CobroAplicadoDto>>($"api/cobros/lote/{Uri.EscapeDataString(loteId)}/aplicados") ?? [];
+    }
+
+    /// <summary>
+    /// Cancela un lote de cobros aplicados
+    /// </summary>
+    public async Task<HttpResponseMessage> CancelarCobroMasivoPorLoteAsync(string loteId)
+    {
+        return await _http.DeleteAsync($"api/cobros/cancelar-lote/{Uri.EscapeDataString(loteId)}");
+    }
 }

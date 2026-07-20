@@ -30,6 +30,76 @@ public class CobrosController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("prestamo/{prestamoId:int}/aplicados")]
+    public async Task<ActionResult<List<CobroAplicadoDto>>> GetCobrosAplicados([FromRoute] int prestamoId)
+    {
+        try
+        {
+            var result = await _cobrosService.GetCobrosAplicadosPorPrestamoAsync(prestamoId);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+    }
+
+    [HttpDelete("cancelar/{cobroId:int}")]
+    public async Task<IActionResult> CancelarCobro([FromRoute] int cobroId)
+    {
+        try
+        {
+            var usuarioId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "Sistema";
+            var result = await _cobrosService.CancelarCobroAsync(cobroId, usuarioId);
+            return Ok(new { Success = result });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Message = "Ocurrió un error inesperado al cancelar el cobro.", Error = ex.Message });
+        }
+    }
+
+    [HttpGet("lote/{loteId}/aplicados")]
+    public async Task<ActionResult<List<CobroAplicadoDto>>> GetCobrosAplicadosPorLote([FromRoute] string loteId)
+    {
+        try
+        {
+            var result = await _cobrosService.GetCobrosAplicadosPorLoteAsync(loteId);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+    }
+
+    [HttpDelete("cancelar-lote/{loteId}")]
+    public async Task<ActionResult<BulkCancelResultDto>> CancelarCobroMasivoPorLote([FromRoute] string loteId)
+    {
+        try
+        {
+            var usuarioId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "Sistema";
+            var result = await _cobrosService.CancelarCobroMasivoPorLoteAsync(loteId, usuarioId);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Message = "Ocurrió un error inesperado al cancelar el lote de cobros.", Error = ex.Message });
+        }
+    }
+
     [HttpPost("aplicar-individual")]
     public async Task<IActionResult> AplicarPagoIndividual([FromBody] AplicarPagoIndividualCommand command)
     {

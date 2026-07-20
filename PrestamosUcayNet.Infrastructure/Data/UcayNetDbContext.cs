@@ -469,6 +469,9 @@ public partial class UcayNetDbContext : IdentityDbContext<UsuarioSistema>
             entity.Property(e => e.OrigenNomina)
                 .HasMaxLength(200);
 
+            entity.Property(e => e.LoteId)
+                .HasMaxLength(50);
+
             entity.HasOne(d => d.Prestamo)
                 .WithMany()
                 .HasForeignKey(d => d.PrestamoId)

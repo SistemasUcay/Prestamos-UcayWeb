@@ -125,6 +125,90 @@ public class CobrosService : ICobrosService
     }
 
     /// <inheritdoc />
+    public async Task<List<CobroAplicadoDto>> GetCobrosAplicadosPorPrestamoAsync(int prestamoId)
+    {
+        if (prestamoId <= 0)
+            throw new InvalidOperationException("El préstamo es inválido.");
+
+        return await _context.PrestamoCobros
+            .AsNoTracking()
+            .Where(c => c.PrestamoId == prestamoId)
+            .OrderByDescending(c => c.FechaCobro)
+            .ThenByDescending(c => c.CobroId)
+            .Select(c => new
+            {
+                Cobro = c,
+                Detalle = c.PrestamoDetallePagos
+                    .OrderByDescending(d => d.DetallePagoId)
+                    .FirstOrDefault()
+            })
+            .Where(x => x.Detalle != null)
+            .Select(x => new CobroAplicadoDto
+            {
+                CobroId = x.Cobro.CobroId,
+                PrestamoId = x.Cobro.PrestamoId,
+                FechaCobro = x.Cobro.FechaCobro,
+                MontoTotal = x.Cobro.MontoTotal,
+                MetodoPago = x.Cobro.MetodoPago,
+                Referencia = x.Cobro.Referencia,
+                UsuarioId = x.Cobro.UsuarioId,
+                OrigenNomina = x.Cobro.OrigenNomina,
+                LoteId = x.Cobro.LoteId,
+                EsPrestamoDirecto = x.Detalle!.PrestamoDirectoId.HasValue,
+                NumeroPago = x.Detalle.Amortizacion != null ? x.Detalle.Amortizacion.NumeroPago : null,
+                AmortizacionId = x.Detalle.AmortizacionId,
+                PrestamoDirectoId = x.Detalle.PrestamoDirectoId,
+                Concepto = x.Detalle.PrestamoDirectoId.HasValue
+                    ? $"Directo #{x.Detalle.PrestamoDirectoId.Value}"
+                    : $"Pago #{(x.Detalle.Amortizacion != null ? x.Detalle.Amortizacion.NumeroPago : 0)}"
+            })
+            .ToListAsync();
+    }
+
+    /// <inheritdoc />
+    public async Task<List<CobroAplicadoDto>> GetCobrosAplicadosPorLoteAsync(string loteId)
+    {
+        if (string.IsNullOrWhiteSpace(loteId))
+            throw new ArgumentException("El LoteId es obligatorio.", nameof(loteId));
+
+        var loteIdNormalizado = loteId.Trim();
+
+        return await _context.PrestamoCobros
+            .AsNoTracking()
+            .Where(c => c.LoteId == loteIdNormalizado)
+            .OrderBy(c => c.FechaCobro)
+            .ThenBy(c => c.CobroId)
+            .Select(c => new
+            {
+                Cobro = c,
+                Detalle = c.PrestamoDetallePagos
+                    .OrderByDescending(d => d.DetallePagoId)
+                    .FirstOrDefault()
+            })
+            .Where(x => x.Detalle != null)
+            .Select(x => new CobroAplicadoDto
+            {
+                CobroId = x.Cobro.CobroId,
+                PrestamoId = x.Cobro.PrestamoId,
+                FechaCobro = x.Cobro.FechaCobro,
+                MontoTotal = x.Cobro.MontoTotal,
+                MetodoPago = x.Cobro.MetodoPago,
+                Referencia = x.Cobro.Referencia,
+                UsuarioId = x.Cobro.UsuarioId,
+                OrigenNomina = x.Cobro.OrigenNomina,
+                LoteId = x.Cobro.LoteId,
+                EsPrestamoDirecto = x.Detalle!.PrestamoDirectoId.HasValue,
+                NumeroPago = x.Detalle.Amortizacion != null ? x.Detalle.Amortizacion.NumeroPago : null,
+                AmortizacionId = x.Detalle.AmortizacionId,
+                PrestamoDirectoId = x.Detalle.PrestamoDirectoId,
+                Concepto = x.Detalle.PrestamoDirectoId.HasValue
+                    ? $"Directo #{x.Detalle.PrestamoDirectoId.Value}"
+                    : $"Pago #{(x.Detalle.Amortizacion != null ? x.Detalle.Amortizacion.NumeroPago : 0)}"
+            })
+            .ToListAsync();
+    }
+
+    /// <inheritdoc />
     public async Task<bool> AplicarPagoIndividualAsync(AplicarPagoIndividualCommand command, string usuarioId)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -173,8 +257,13 @@ public class CobrosService : ICobrosService
     {
         ArgumentNullException.ThrowIfNull(command);
 
+        var loteId = string.IsNullOrWhiteSpace(command.LoteId)
+            ? $"LOT-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..30]
+            : command.LoteId.Trim();
+
         var result = new BulkPaymentResultDto
         {
+            LoteId = loteId,
             TotalRegistros = command.Detalles.Count
         };
 
@@ -195,7 +284,8 @@ public class CobrosService : ICobrosService
                             $"Lote Directo: {command.OrigenNomina}",
                             usuarioId,
                             command.FechaCobro,
-                            command.OrigenNomina);
+                            command.OrigenNomina,
+                            loteId);
                     }
                     else
                     {
@@ -208,7 +298,8 @@ public class CobrosService : ICobrosService
                             $"Lote Nómina: {command.OrigenNomina}",
                             usuarioId,
                             command.OrigenNomina,
-                            command.FechaCobro);
+                            command.FechaCobro,
+                            loteId);
                     }
 
                     result.Exitosos++;
@@ -240,6 +331,176 @@ public class CobrosService : ICobrosService
         }
     }
 
+    /// <inheritdoc />
+    public async Task<bool> CancelarCobroAsync(int cobroId, string usuarioId)
+    {
+        if (cobroId <= 0)
+            throw new InvalidOperationException("El cobro es inválido.");
+
+        if (string.IsNullOrWhiteSpace(usuarioId))
+            throw new ArgumentException("El usuario que cancela el cobro es obligatorio.", nameof(usuarioId));
+
+        using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            await CancelarCobroCoreAsync(cobroId);
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return true;
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<BulkCancelResultDto> CancelarCobroMasivoPorLoteAsync(string loteId, string usuarioId)
+    {
+        if (string.IsNullOrWhiteSpace(loteId))
+            throw new ArgumentException("El LoteId es obligatorio.", nameof(loteId));
+
+        if (string.IsNullOrWhiteSpace(usuarioId))
+            throw new ArgumentException("El usuario que cancela el cobro es obligatorio.", nameof(usuarioId));
+
+        var loteIdNormalizado = loteId.Trim();
+        var cobrosLoteIds = await _context.PrestamoCobros
+            .Where(c => c.LoteId == loteIdNormalizado)
+            .OrderByDescending(c => c.CobroId)
+            .Select(c => c.CobroId)
+            .ToListAsync();
+
+        if (cobrosLoteIds.Count == 0)
+            throw new InvalidOperationException("No existen cobros para el LoteId especificado.");
+
+        var result = new BulkCancelResultDto
+        {
+            LoteId = loteIdNormalizado,
+            TotalCobros = cobrosLoteIds.Count
+        };
+
+        using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            foreach (var cobroId in cobrosLoteIds)
+            {
+                try
+                {
+                    await CancelarCobroCoreAsync(cobroId);
+                    result.Cancelados++;
+                }
+                catch (InvalidOperationException ex)
+                {
+                    result.Fallidos++;
+                    result.DetallesErrores.Add($"Cobro {cobroId}: {ex.Message}");
+                }
+            }
+
+            if (result.Fallidos > 0)
+            {
+                await transaction.RollbackAsync();
+                return result;
+            }
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return result;
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    private async Task CancelarCobroCoreAsync(int cobroId)
+    {
+        var cobro = await _context.PrestamoCobros
+            .Include(c => c.PrestamoDetallePagos)
+                .ThenInclude(d => d.Amortizacion)
+            .Include(c => c.PrestamoDetallePagos)
+                .ThenInclude(d => d.PrestamoDirecto)
+            .FirstOrDefaultAsync(c => c.CobroId == cobroId)
+            ?? throw new InvalidOperationException("El cobro especificado no existe.");
+
+        if (cobro.PrestamoDetallePagos.Count == 0)
+            throw new InvalidOperationException("El cobro no tiene detalle para cancelar.");
+
+        foreach (var detalle in cobro.PrestamoDetallePagos)
+        {
+            if (detalle.AmortizacionId.HasValue)
+            {
+                var ultimoDetalleId = await _context.PrestamoDetallePagos
+                    .Where(d => d.AmortizacionId == detalle.AmortizacionId)
+                    .MaxAsync(d => d.DetallePagoId);
+
+                if (ultimoDetalleId != detalle.DetallePagoId)
+                    throw new InvalidOperationException("Solo se puede cancelar el último cobro aplicado para la cuota seleccionada.");
+            }
+
+            if (detalle.PrestamoDirectoId.HasValue)
+            {
+                var ultimoDetalleId = await _context.PrestamoDetallePagos
+                    .Where(d => d.PrestamoDirectoId == detalle.PrestamoDirectoId)
+                    .MaxAsync(d => d.DetallePagoId);
+
+                if (ultimoDetalleId != detalle.DetallePagoId)
+                    throw new InvalidOperationException("Solo se puede cancelar el último cobro aplicado para el préstamo directo seleccionado.");
+            }
+        }
+
+        var prestamo = await _context.Prestamos.FirstOrDefaultAsync(p => p.PrestamoId == cobro.PrestamoId)
+            ?? throw new InvalidOperationException("El préstamo del cobro no existe.");
+
+        foreach (var detalle in cobro.PrestamoDetallePagos)
+        {
+            if (detalle.AmortizacionId.HasValue)
+            {
+                var amortizacion = detalle.Amortizacion
+                    ?? await _context.PrestamosAmortizaciones.FirstOrDefaultAsync(a => a.AmortizacionId == detalle.AmortizacionId.Value)
+                    ?? throw new InvalidOperationException("La amortización del cobro no existe.");
+
+                amortizacion.ImportePagoInteres += detalle.MontoInteres;
+                amortizacion.ImportePagoCapital += detalle.MontoCapital;
+                amortizacion.ImportePago = amortizacion.ImportePagoInteres + amortizacion.ImportePagoCapital;
+                amortizacion.PagoExtraCapital = Math.Max(0, amortizacion.PagoExtraCapital - detalle.PagoExtraCapital);
+                amortizacion.StatusPago = false;
+
+                if (detalle.PagoExtraCapital > 0)
+                {
+                    amortizacion.SaldoFinal += detalle.PagoExtraCapital;
+
+                    var cuotasSiguientes = await _context.PrestamosAmortizaciones
+                        .Where(a => a.PrestamoId == amortizacion.PrestamoId && a.NumeroPago > amortizacion.NumeroPago)
+                        .ToListAsync();
+
+                    foreach (var cuotaSiguiente in cuotasSiguientes)
+                    {
+                        cuotaSiguiente.SaldoInicial += detalle.PagoExtraCapital;
+                        cuotaSiguiente.SaldoFinal += detalle.PagoExtraCapital;
+                    }
+                }
+
+                var montoCapitalRevertido = detalle.MontoCapital + detalle.PagoExtraCapital;
+                prestamo.SaldoPendiente += montoCapitalRevertido;
+            }
+
+            if (detalle.PrestamoDirectoId.HasValue)
+            {
+                var prestamoDirecto = detalle.PrestamoDirecto
+                    ?? await _context.PrestamosDirectos.FirstOrDefaultAsync(d => d.NumPrestamoDirecto == detalle.PrestamoDirectoId.Value && d.PrestamoId == detalle.PrestamoId)
+                    ?? throw new InvalidOperationException("El préstamo directo del cobro no existe.");
+
+                prestamoDirecto.StatusPago = false;
+                prestamoDirecto.FechaPagoReal = null;
+            }
+        }
+
+        _context.PrestamoDetallePagos.RemoveRange(cobro.PrestamoDetallePagos);
+        _context.PrestamoCobros.Remove(cobro);
+    }
+
     private async Task ProcesarPagoAmortizacionAsync(
         int prestamoId,
         int? numeroPago,
@@ -249,7 +510,8 @@ public class CobrosService : ICobrosService
         string? referencia,
         string usuarioId,
         string? origenNomina = null,
-        DateTime? fechaPago = null)
+        DateTime? fechaPago = null,
+        string? loteId = null)
     {
         if (prestamoId <= 0)
             throw new InvalidOperationException("El préstamo es inválido.");
@@ -302,7 +564,8 @@ public class CobrosService : ICobrosService
             MetodoPago = metodoPago,
             Referencia = referencia,
             UsuarioId = usuarioId,
-            OrigenNomina = origenNomina
+            OrigenNomina = origenNomina,
+            LoteId = loteId
         };
         _context.PrestamoCobros.Add(cobro);
 
@@ -395,7 +658,8 @@ public class CobrosService : ICobrosService
         string? referencia,
         string usuarioId,
         DateTime? fechaPago = null,
-        string? origenNomina = null)
+        string? origenNomina = null,
+        string? loteId = null)
     {
         if (prestamoId <= 0)
             throw new InvalidOperationException("El préstamo es inválido.");
@@ -433,7 +697,8 @@ public class CobrosService : ICobrosService
             MetodoPago = metodoPago,
             Referencia = referencia,
             UsuarioId = usuarioId,
-            OrigenNomina = origenNomina
+            OrigenNomina = origenNomina,
+            LoteId = loteId
         };
         _context.PrestamoCobros.Add(cobro);
 

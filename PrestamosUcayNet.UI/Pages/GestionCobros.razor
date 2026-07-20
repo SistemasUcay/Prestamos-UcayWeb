@@ -417,6 +417,59 @@
                                     </MudGrid>
                                 </MudItem>
                             }
+
+                            <MudItem xs="12" Class="mt-4">
+                                <MudPaper Outlined="true" Class="pa-4" Style="border-radius: 12px;">
+                                    <MudText Typo="Typo.h6" Class="mb-3" Color="Color.Secondary">
+                                        <MudIcon Icon="@Icons.Material.Filled.History" Class="mr-1" Style="vertical-align: middle;" />
+                                        Cobros Aplicados
+                                    </MudText>
+                                    @if (_cobrosAplicados.Any())
+                                    {
+                                        <MudTable T="CobroAplicadoDto" Items="_cobrosAplicados" Dense="true" Hover="true" Striped="true" Elevation="0">
+                                            <HeaderContent>
+                                                <MudTh>Fecha</MudTh>
+                                                <MudTh>Concepto</MudTh>
+                                                <MudTh>Método</MudTh>
+                                                <MudTh>Referencia</MudTh>
+                                                <MudTh style="text-align: right;">Monto</MudTh>
+                                                <MudTh>Acción</MudTh>
+                                            </HeaderContent>
+                                            <RowTemplate>
+                                                <MudTd>@context.FechaCobro.ToString("dd/MM/yyyy")</MudTd>
+                                                <MudTd>
+                                                    @if (context.EsPrestamoDirecto)
+                                                    {
+                                                        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Text">@context.Concepto</MudChip>
+                                                    }
+                                                    else
+                                                    {
+                                                        <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Text">@context.Concepto</MudChip>
+                                                    }
+                                                </MudTd>
+                                                <MudTd>@context.MetodoPago</MudTd>
+                                                <MudTd>@(string.IsNullOrWhiteSpace(context.Referencia) ? "N/D" : context.Referencia)</MudTd>
+                                                <MudTd style="text-align: right; font-weight: 700;">@context.MontoTotal.ToString("C2")</MudTd>
+                                                <MudTd>
+                                                    <MudButton Size="Size.Small"
+                                                               Variant="Variant.Outlined"
+                                                               Color="Color.Error"
+                                                               Disabled="_cancelandoCobro"
+                                                               OnClick="() => CancelarCobro(context)">
+                                                        Cancelar
+                                                    </MudButton>
+                                                </MudTd>
+                                            </RowTemplate>
+                                        </MudTable>
+                                    }
+                                    else
+                                    {
+                                        <MudAlert Severity="Severity.Info" Dense="true" Variant="Variant.Text">
+                                            No hay cobros aplicados para este préstamo.
+                                        </MudAlert>
+                                    }
+                                </MudPaper>
+                            </MudItem>
                         }
                     </MudGrid>
                                 </div>
@@ -641,6 +694,30 @@
                         }
                     </MudButton>
                 </div>
+
+                @if (!string.IsNullOrWhiteSpace(_ultimoLoteIdGenerado))
+                {
+                    <MudAlert Severity="Severity.Success" Dense="true" Variant="Variant.Text" Class="mt-3">
+                        Último lote aplicado: <b>@_ultimoLoteIdGenerado</b>
+                    </MudAlert>
+                }
+
+                <div class="d-flex justify-space-between align-center mt-3 flex-wrap gap-3">
+                    <MudTextField T="string" @bind-Value="_loteIdCancelar" Label="LoteId a cancelar" Variant="Variant.Outlined" Style="min-width: 320px; max-width: 400px;" />
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Medium"
+                               StartIcon="@Icons.Material.Filled.Undo" OnClick="ConfirmarYCancelarLotePorId"
+                               Disabled="_cancelandoLote || string.IsNullOrWhiteSpace(_loteIdCancelar)">
+                        @if (_cancelandoLote)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            <span>Cancelando Lote...</span>
+                        }
+                        else
+                        {
+                            <span>Cancelar Lote</span>
+                        }
+                    </MudButton>
+                </div>
             </MudPaper>
             </div>
         </MudTabPanel>
@@ -668,6 +745,8 @@
     private string? _referenciaPagoDirecto = "";
     private DateTime? _fechaPagoDirecto = DateTime.Today;
     private bool _guardandoCobroDirecto = false;
+    private List<CobroAplicadoDto> _cobrosAplicados = new();
+    private bool _cancelandoCobro = false;
 
     // Distribución dinámica
     private decimal _distInteres = 0;
@@ -683,6 +762,8 @@
     private DateTime? _fechaPagoLote = DateTime.Today;
     private string _origenNominaDetalle = $"Nómina {DateTime.Today:MMMM yyyy}";
     private string _loteSearchString = "";
+    private string _loteIdCancelar = string.Empty;
+    private string? _ultimoLoteIdGenerado;
 
     private const string LoteEmpresaStorageKey = "cobros.lote.empresaId";
     private const string LoteTipoPagoStorageKey = "cobros.lote.tipoPagoId";
@@ -694,6 +775,7 @@
     private List<LoteCobroItem> _loteAmortizaciones = new();
     private HashSet<LoteCobroItem> _loteAmortizacionesSeleccionadas = new();
     private bool _procesandoLote = false;
+    private bool _cancelandoLote = false;
 
     public class LoteCobroItem
     {
@@ -814,6 +896,7 @@
         _amortizacionesPendientes.Clear();
         _amortizacionSeleccionada = null;
         _prestamoDirectoSeleccionado = null;
+        _cobrosAplicados.Clear();
 
         try
         {
@@ -857,7 +940,13 @@
                     .Where(a => !a.Pagado)
                     .OrderBy(a => a.NumeroPago)
                     .ToList();
+
+                await CargarCobrosAplicadosAsync(_prestamoDetalle.Id);
             }
+        }
+        else
+        {
+            _cobrosAplicados.Clear();
         }
     }
 
@@ -1060,6 +1149,62 @@
         }
     }
 
+    private async Task CargarCobrosAplicadosAsync(int prestamoId)
+    {
+        try
+        {
+            var cobros = await CobrosApi.GetCobrosAplicadosPorPrestamoAsync(prestamoId);
+            _cobrosAplicados = cobros
+                .OrderBy(c => c.FechaCobro)
+                .ThenBy(c => c.Concepto)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _cobrosAplicados = new List<CobroAplicadoDto>();
+            Snackbar.Add($"No fue posible cargar el historial de cobros: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task CancelarCobro(CobroAplicadoDto cobro)
+    {
+        if (_prestamoSeleccionado == null)
+            return;
+
+        bool? confirm = await DialogService.ShowMessageBoxAsync(
+            "Cancelar cobro",
+            $"¿Desea cancelar el cobro {cobro.Concepto} por {cobro.MontoTotal.ToString("C2", CultureInfo.CurrentCulture)} aplicado el {cobro.FechaCobro:dd/MM/yyyy}?",
+            yesText: "Sí, cancelar",
+            cancelText: "No");
+
+        if (confirm != true)
+            return;
+
+        _cancelandoCobro = true;
+        try
+        {
+            var response = await CobrosApi.CancelarCobroAsync(cobro.CobroId);
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Cobro cancelado correctamente.", Severity.Success);
+                await OnPrestamoSelected(_prestamoSeleccionado);
+            }
+            else
+            {
+                var errorText = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"No se pudo cancelar el cobro: {errorText}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cancelar cobro: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _cancelandoCobro = false;
+        }
+    }
+
     // ---- SECCIÓN PAGO MASIVO ----
     private async Task CargarLoteCobro()
     {
@@ -1249,9 +1394,12 @@
                 var result = await response.Content.ReadFromJsonAsync<BulkPaymentResultDto>();
                 if (result != null)
                 {
+                    _ultimoLoteIdGenerado = result.LoteId;
+                    _loteIdCancelar = result.LoteId ?? _loteIdCancelar;
+
                     if (result.Fallidos == 0)
                     {
-                        Snackbar.Add($"¡Lote de cobros aplicado con éxito! Procesados: {result.Exitosos}", Severity.Success);
+                        Snackbar.Add($"¡Lote de cobros aplicado con éxito! LoteId: {result.LoteId}. Procesados: {result.Exitosos}", Severity.Success);
                     }
                     else
                     {
@@ -1280,6 +1428,102 @@
         finally
         {
             _procesandoLote = false;
+        }
+    }
+
+    private async Task ConfirmarYCancelarLotePorId()
+    {
+        if (string.IsNullOrWhiteSpace(_loteIdCancelar))
+        {
+            Snackbar.Add("Capture el LoteId que desea cancelar.", Severity.Warning);
+            return;
+        }
+
+        var loteId = _loteIdCancelar.Trim();
+
+        List<CobroAplicadoDto> cobrosLote;
+        try
+        {
+            cobrosLote = await CobrosApi.GetCobrosAplicadosPorLoteAsync(loteId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"No fue posible consultar el detalle del lote: {ex.Message}", Severity.Error);
+            return;
+        }
+
+        if (!cobrosLote.Any())
+        {
+            Snackbar.Add($"No se encontraron pagos o amortizaciones para el lote {loteId}.", Severity.Warning);
+            return;
+        }
+
+        var totalMonto = cobrosLote.Sum(x => x.MontoTotal);
+        var resumen = new System.Text.StringBuilder();
+        resumen.AppendLine($"Lote: {loteId}");
+        resumen.AppendLine($"Registros: {cobrosLote.Count}");
+        resumen.AppendLine($"Monto total: {totalMonto.ToString("C2", CultureInfo.CurrentCulture)}");
+        resumen.AppendLine();
+        resumen.AppendLine("Pagos/Amortizaciones a cancelar:");
+
+        foreach (var item in cobrosLote.OrderBy(x => x.FechaCobro).ThenBy(x => x.Concepto).Take(30))
+        {
+            resumen.AppendLine($"• {item.FechaCobro:dd/MM/yyyy} | Préstamo {item.PrestamoId} | {item.Concepto} | {item.MontoTotal.ToString("C2", CultureInfo.CurrentCulture)}");
+        }
+
+        if (cobrosLote.Count > 30)
+        {
+            resumen.AppendLine($"... y {cobrosLote.Count - 30} registro(s) más.");
+        }
+
+        bool? confirm = await DialogService.ShowMessageBoxAsync(
+            "Confirmación de Cancelación de Lote",
+            $"{resumen}\n\n¿Desea continuar con la cancelación?",
+            yesText: "Sí, Cancelar Lote",
+            cancelText: "No");
+
+        if (confirm != true)
+            return;
+
+        _cancelandoLote = true;
+        try
+        {
+            var response = await CobrosApi.CancelarCobroMasivoPorLoteAsync(loteId);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<BulkCancelResultDto>();
+                if (result is not null)
+                {
+                    if (result.Fallidos == 0)
+                    {
+                        Snackbar.Add($"Lote {result.LoteId} cancelado correctamente. Cobros revertidos: {result.Cancelados}.", Severity.Success);
+                        await CargarLoteCobro();
+                    }
+                    else
+                    {
+                        var errores = result.DetallesErrores?.Where(x => !string.IsNullOrWhiteSpace(x)).ToList() ?? new List<string>();
+                        var errorMsg = errores.Count > 0
+                            ? string.Join("\n", errores)
+                            : "No se recibieron detalles de validación desde el servidor.";
+
+                        Snackbar.Add($"No se canceló el lote {result.LoteId}. Errores: {result.Fallidos}.", Severity.Error);
+                        await DialogService.ShowMessageBoxAsync("Errores en Cancelación de Lote", errorMsg, yesText: "Entendido");
+                    }
+                }
+            }
+            else
+            {
+                var errorText = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Error al cancelar lote: {errorText}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cancelar lote: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _cancelandoLote = false;
         }
     }
 }

@@ -16,6 +16,7 @@ public partial class PrestamoCobro
     public string? Referencia { get; set; }
     public string? UsuarioId { get; set; }
     public string? OrigenNomina { get; set; }
+    public string? LoteId { get; set; }
 
     public virtual Prestamo Prestamo { get; set; } = null!;
     public virtual ICollection<PrestamoDetallePago> PrestamoDetallePagos { get; set; } = new List<PrestamoDetallePago>();
