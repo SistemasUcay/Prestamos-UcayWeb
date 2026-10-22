@@ -1,5 +1,5 @@
 @page "/gestion-puestos"
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador,RecursosHumanos")]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador,Supervisor,RecursosHumanos")]
 @inject CatalogosApiService CatalogosApi
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService

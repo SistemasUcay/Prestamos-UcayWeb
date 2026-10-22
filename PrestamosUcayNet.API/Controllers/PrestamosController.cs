@@ -1,11 +1,15 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PrestamosUcayNet.Application.DTOs;
 using PrestamosUcayNet.Application.Interfaces;
+using PrestamosUcayNet.Domain.Entities;
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace PrestamosUcayNet.API.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class PrestamosController : ControllerBase
@@ -18,6 +22,7 @@ public class PrestamosController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = RolSistema.RolesConsultaPrestamos)]
     public async Task<ActionResult<List<PrestamoListDto>>> GetAll()
     {
         return Ok(await _prestamosService.ListarTodosAsync());
@@ -28,10 +33,24 @@ public class PrestamosController : ControllerBase
     {
         var result = await _prestamosService.ObtenerDetalleAsync(id);
         if (result == null) return NotFound();
+
+        // Si el usuario tiene únicamente el rol Empleado, validar que el préstamo le pertenezca
+        if (User.IsInRole(RolSistema.Empleado) &&
+            !User.IsInRole(RolSistema.Administrador) &&
+            !User.IsInRole(RolSistema.Supervisor) &&
+            !User.IsInRole(RolSistema.GestorPrestamos) &&
+            !User.IsInRole(RolSistema.Consultor))
+        {
+            var claimEmpleadoId = User.FindFirst("empleadoId")?.Value;
+            if (!int.TryParse(claimEmpleadoId, out var empId) || result.EmpleadoId != empId)
+                return Forbid();
+        }
+
         return Ok(result);
     }
 
     [HttpGet("por-estado/{estado}")]
+    [Authorize(Roles = RolSistema.RolesConsultaPrestamos)]
     public async Task<ActionResult<List<PrestamoListDto>>> GetPorEstado(string estado)
     {
         return Ok(await _prestamosService.ListarPorEstadoAsync(estado));
@@ -40,10 +59,23 @@ public class PrestamosController : ControllerBase
     [HttpGet("por-empleado/{empleadoId}")]
     public async Task<ActionResult<List<PrestamoListDto>>> GetPorEmpleado(int empleadoId)
     {
+        // Si el usuario tiene únicamente el rol Empleado, solo puede consultar sus propios préstamos
+        if (User.IsInRole(RolSistema.Empleado) &&
+            !User.IsInRole(RolSistema.Administrador) &&
+            !User.IsInRole(RolSistema.Supervisor) &&
+            !User.IsInRole(RolSistema.GestorPrestamos) &&
+            !User.IsInRole(RolSistema.Consultor))
+        {
+            var claimEmpleadoId = User.FindFirst("empleadoId")?.Value;
+            if (!int.TryParse(claimEmpleadoId, out var empId) || empleadoId != empId)
+                return Forbid();
+        }
+
         return Ok(await _prestamosService.ListarPorEmpleadoAsync(empleadoId));
     }
 
     [HttpPost("activar")]
+    [Authorize(Roles = RolSistema.RolesOperacionPrestamos)]
     public async Task<IActionResult> Activar(ActivarPrestamoDto dto)
     {
         try
@@ -59,6 +91,7 @@ public class PrestamosController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = RolSistema.RolesOperacionPrestamos)]
     public async Task<IActionResult> Crear(PrestamoCreateDto dto)
     {
         try
@@ -73,6 +106,7 @@ public class PrestamosController : ControllerBase
     }
 
     [HttpPost("simular-amortizacion")]
+    [Authorize(Roles = RolSistema.RolesOperacionPrestamos)]
     public ActionResult<AmortizacionPreviewResultDto> Simular(SimularAmortizacionDto dto)
     {
         var result = _prestamosService.SimularAmortizacion(dto);
@@ -80,6 +114,7 @@ public class PrestamosController : ControllerBase
     }
 
     [HttpPut]
+    [Authorize(Roles = RolSistema.RolesOperacionPrestamos)]
     public async Task<IActionResult> Actualizar(PrestamoUpdateDto dto)
     {
         var result = await _prestamosService.ActualizarPrestamoAsync(dto);
@@ -88,6 +123,7 @@ public class PrestamosController : ControllerBase
     }
 
     [HttpPost("{id}/cancelar")]
+    [Authorize(Roles = RolSistema.RolesAprobadoresPrestamos)]
     public async Task<IActionResult> Cancelar(int id)
     {
         var result = await _prestamosService.CancelarPrestamoAsync(id);
@@ -96,6 +132,7 @@ public class PrestamosController : ControllerBase
     }
 
     [HttpPost("evaluar")]
+    [Authorize(Roles = RolSistema.RolesAprobadoresPrestamos)]
     public async Task<IActionResult> Evaluar(EvaluarPrestamoDto dto)
     {
         try
@@ -111,6 +148,7 @@ public class PrestamosController : ControllerBase
     }
 
     [HttpPost("{id}/aprobar")]
+    [Authorize(Roles = RolSistema.RolesAprobadoresPrestamos)]
     public async Task<IActionResult> Aprobar(int id, [FromBody] AprobarPrestamoRequestDto request)
     {
         try
@@ -133,6 +171,7 @@ public class PrestamosController : ControllerBase
     }
 
     [HttpPost("{id}/rechazar")]
+    [Authorize(Roles = RolSistema.RolesAprobadoresPrestamos)]
     public async Task<IActionResult> Rechazar(int id, [FromBody] RechazarCancelarRequestDto request)
     {
         try
@@ -148,6 +187,7 @@ public class PrestamosController : ControllerBase
     }
 
     [HttpPost("{id}/cancelar-solicitud")]
+    [Authorize(Roles = RolSistema.RolesAprobadoresPrestamos)]
     public async Task<IActionResult> CancelarSolicitud(int id, [FromBody] RechazarCancelarRequestDto request)
     {
         try
@@ -163,6 +203,7 @@ public class PrestamosController : ControllerBase
     }
 
     [HttpPost("{id}/devolver-evaluacion")]
+    [Authorize(Roles = RolSistema.RolesAprobadoresPrestamos)]
     public async Task<IActionResult> DevolverAEvaluacion(int id)
     {
         try
@@ -178,6 +219,7 @@ public class PrestamosController : ControllerBase
     }
 
     [HttpPut("{id}/solicitud")]
+    [Authorize(Roles = RolSistema.RolesOperacionPrestamos)]
     public async Task<IActionResult> ActualizarSolicitud(int id, PrestamoCreateDto dto)
     {
         try

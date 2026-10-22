@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PrestamosUcayNet.Application.Cobros.Commands;
 using PrestamosUcayNet.Application.DTOs;
 using PrestamosUcayNet.Application.Interfaces;
+using PrestamosUcayNet.Domain.Entities;
 using System;
 using System.Collections.Generic;
 using System.Security.Claims;
@@ -9,6 +11,7 @@ using System.Threading.Tasks;
 
 namespace PrestamosUcayNet.API.Controllers;
 
+[Authorize(Roles = RolSistema.RolesOperacionPrestamos)]
 [ApiController]
 [Route("api/[controller]")]
 public class CobrosController : ControllerBase

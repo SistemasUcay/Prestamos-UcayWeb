@@ -126,7 +126,12 @@ public partial class Empleado
 
     public virtual ICollection<Prestamo> Prestamos { get; set; } = new List<Prestamo>();
 
+    public virtual ICollection<PeriodoVacacional> PeriodosVacacionales { get; set; } = new List<PeriodoVacacional>();
+
+    public virtual ICollection<SolicitudVacaciones> SolicitudesVacaciones { get; set; } = new List<SolicitudVacaciones>();
+
     public virtual Puesto Puesto { get; set; } = null!;
 
     public virtual TiposPago TipoPago { get; set; } = null!;
 }
+

@@ -4,25 +4,50 @@
 </div>
 
 <MudNavMenu>
-    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Inicio / Dashboard</MudNavLink>
 
-    <AuthorizeView Roles="Administrador,Gerente,Contador">
+    @* ── Portal del Empleado (Autoservicio) ── *@
+    <AuthorizeView Roles="Empleado,Administrador,Supervisor,GestorPrestamos,RecursosHumanos,Consultor">
         <Authorized>
             <MudDivider Class="my-2" />
-            <MudNavGroup Title="Gestión Créditos" Icon="@Icons.Material.Filled.AccountBalance" Expanded="false">
-                <MudNavLink Href="captura-prestamo" Icon="@Icons.Material.Filled.RequestPage">Nuevo Préstamo</MudNavLink> 
-                <MudNavLink Href="gestion-solicitudes" Icon="@Icons.Material.Filled.PendingActions">Solicitudes</MudNavLink>
-                <MudNavLink Href="gestion-prestamos" Icon="@Icons.Material.Filled.Payments">Préstamos</MudNavLink>
-                <MudNavLink Href="gestion-cobros" Icon="@Icons.Material.Filled.PriceCheck">Cobros y Pagos</MudNavLink>
+            <MudNavGroup Title="Mi Portal Colaborador" Icon="@Icons.Material.Filled.PersonPin" Expanded="true">
+                <MudNavLink Href="mis-prestamos" Icon="@Icons.Material.Filled.AccountBalanceWallet">Mis Préstamos</MudNavLink>
+                <MudNavLink Href="gestion-vacaciones" Icon="@Icons.Material.Filled.BeachAccess">Mis Vacaciones</MudNavLink>
             </MudNavGroup>
         </Authorized>
     </AuthorizeView>
 
-    <AuthorizeView Roles="Administrador, RecursosHumanos">
+    @* ── Gestión de Créditos (Operación, Supervisión y Consulta) ── *@
+    <AuthorizeView Roles="Administrador,Supervisor,GestorPrestamos,Consultor">
+        <Authorized>
+            <MudDivider Class="my-2" />
+            <MudNavGroup Title="Gestión Créditos" Icon="@Icons.Material.Filled.AccountBalance" Expanded="false">
+                <AuthorizeView Roles="Administrador,Supervisor,GestorPrestamos" Context="operacionContext">
+                    <MudNavLink Href="captura-prestamo" Icon="@Icons.Material.Filled.RequestPage">Nuevo Préstamo</MudNavLink>
+                    <MudNavLink Href="gestion-solicitudes" Icon="@Icons.Material.Filled.PendingActions">Solicitudes y Aprobación</MudNavLink>
+                </AuthorizeView>
+                <MudNavLink Href="gestion-prestamos" Icon="@Icons.Material.Filled.Payments">Préstamos</MudNavLink>
+                <AuthorizeView Roles="Administrador,Supervisor,GestorPrestamos" Context="cobrosContext">
+                    <MudNavLink Href="gestion-cobros" Icon="@Icons.Material.Filled.PriceCheck">Cobros y Pagos</MudNavLink>
+                </AuthorizeView>
+            </MudNavGroup>
+        </Authorized>
+    </AuthorizeView>
+
+    @* ── Control de Vacaciones (Administración y Aprobación) ── *@
+    <AuthorizeView Roles="Administrador,Supervisor,RecursosHumanos,Consultor">
+        <Authorized>
+            <MudDivider Class="my-2" />
+            <MudNavLink Href="gestion-vacaciones" Icon="@Icons.Material.Filled.BeachAccess">Control de Vacaciones</MudNavLink>
+        </Authorized>
+    </AuthorizeView>
+
+    @* ── Catálogos ── *@
+    <AuthorizeView Roles="Administrador,Supervisor,RecursosHumanos">
         <Authorized>
             <MudDivider Class="my-2" />
             <MudNavGroup Title="Catálogos" Icon="@Icons.Material.Filled.LibraryBooks" Expanded="false">
-                <AuthorizeView Roles="Administrador" Context="adminContext">
+                <AuthorizeView Roles="Administrador,Supervisor" Context="adminContext">
                     <MudNavLink Href="gestion-empresas" Icon="@Icons.Material.Filled.Business">Empresas</MudNavLink>
                 </AuthorizeView>
                 <MudNavLink Href="gestion-departamentos" Icon="@Icons.Material.Filled.Domain">Departamentos</MudNavLink>
@@ -34,6 +59,7 @@
         </Authorized>
     </AuthorizeView>
 
+    @* ── Sistema ── *@
     <AuthorizeView Roles="Administrador">
         <Authorized>
             <MudDivider Class="my-2" />

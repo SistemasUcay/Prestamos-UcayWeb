@@ -1,7 +1,7 @@
 @page "/captura-prestamo"
 @page "/captura-prestamo/{PrestamoEditId:int}"
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize(Roles = "Administrador,Gerente,Contador")]
+@attribute [Authorize(Roles = "Administrador,Supervisor,GestorPrestamos")]
 @using PrestamosUcayNet.Application.DTOs
 @using PrestamosUcayNet.Domain.Enums
 @implements IDisposable

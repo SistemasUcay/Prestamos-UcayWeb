@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using PrestamosUcayNet.Infrastructure;
+using PrestamosUcayNet.Infrastructure.Configurations;
 using PrestamosUcayNet.Infrastructure.Identity;
 using PrestamosUcayNet.Domain.Entities;
 
@@ -43,6 +44,10 @@ public partial class UcayNetDbContext : IdentityDbContext<UsuarioSistema>
     public virtual DbSet<TipoPrestamo> TipoPrestamos { get; set; }
 
     public virtual DbSet<TiposPago> TiposPagos { get; set; }
+
+    public virtual DbSet<PeriodoVacacional> PeriodosVacacionales { get; set; }
+
+    public virtual DbSet<SolicitudVacaciones> SolicitudesVacaciones { get; set; }
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -601,6 +606,10 @@ public partial class UcayNetDbContext : IdentityDbContext<UsuarioSistema>
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("FK_Usuarios_Empleados");
         });
+
+        // Configuraciones del módulo de Control de Vacaciones
+        modelBuilder.ApplyConfiguration(new PeriodoVacacionalConfiguration());
+        modelBuilder.ApplyConfiguration(new SolicitudVacacionesConfiguration());
 
         base.OnModelCreating(modelBuilder);
 

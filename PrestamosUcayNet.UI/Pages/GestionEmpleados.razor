@@ -1,6 +1,6 @@
 @page "/gestion-empleados"
 @using MudBlazor
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador, RecursosHumanos")]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador,Supervisor,RecursosHumanos")]
 @inject EmpleadosApiService EmpleadosService
 @inject EmpresasApiService EmpresasService
 @inject CatalogosApiService CatalogosService

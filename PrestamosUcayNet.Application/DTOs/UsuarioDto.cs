@@ -19,6 +19,7 @@ public class LoginResponseDto
     public string NombreCompleto { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public List<string> Roles { get; set; } = [];
+    public int? EmpleadoId { get; set; }
 }
 
 /// <summary>

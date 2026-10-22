@@ -14,6 +14,7 @@ public class EmpleadoListDto
     public string EmpresaNombre { get; set; } = null!;
     public string DepartamentoNombre { get; set; } = null!;
     public string PuestoNombre { get; set; } = null!;
+    public string? Email { get; set; }
     public bool EmpleadoUcay { get; set; }
 }
 
@@ -24,7 +25,6 @@ public class EmpleadoDetailDto : EmpleadoListDto
     public string Domicilio { get; set; } = null!;
     public int CodigoPostal { get; set; }
     public string? Celular { get; set; }
-    public string? Email { get; set; }
     public string? CuentaBancaria { get; set; }
     public string? CuentaClabe { get; set; }
     public DateTime? FechaIngreso { get; set; }

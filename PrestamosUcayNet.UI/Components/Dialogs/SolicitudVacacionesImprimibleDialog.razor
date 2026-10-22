@@ -1,0 +1,513 @@
+@using PrestamosUcayNet.Application.DTOs
+@using PrestamosUcayNet.UI.Services
+@using MudBlazor
+@using Microsoft.AspNetCore.Components
+@using System.Text
+@inject VacacionesApiService VacacionesApi
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.Print" Color="Color.Primary" Class="mr-2" />
+            <MudText Typo="Typo.h6" Style="font-weight: 700;">
+                @(SolicitudVacacionesId > 0 ? $"Formato de Solicitud de Vacaciones #{SolicitudVacacionesId:D5}" : "Vista Previa - Formato de Solicitud de Vacaciones")
+            </MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <div class="d-flex justify-center align-center" style="min-height: 300px;">
+                <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+            </div>
+        }
+        else if (_solicitud == null)
+        {
+            <MudAlert Severity="Severity.Error">No se pudo cargar la información de la solicitud de vacaciones.</MudAlert>
+        }
+        else
+        {
+            <div id="solicitud-vacaciones-imprimible" style="padding: 20px; font-family: Arial, sans-serif; max-width: 210mm; color: #222; background: #fff;">
+                <!-- Encabezado -->
+                <div style="text-align: center; margin-bottom: 18px; border-bottom: 3px solid #1976d2; padding-bottom: 10px;">
+                    <div style="font-size: 13px; font-weight: bold; color: #444; text-transform: uppercase; letter-spacing: 0.5px;">
+                        @(string.IsNullOrWhiteSpace(_solicitud.EmpresaNombre) ? "SISTEMA DE GESTIÓN DE CAPITAL HUMANO UCAYNET" : _solicitud.EmpresaNombre)
+                    </div>
+                    <h2 style="margin: 4px 0 0 0; color: #1976d2; font-size: 20px; letter-spacing: 0.5px;">
+                        SOLICITUD Y AUTORIZACIÓN DE VACACIONES
+                    </h2>
+                    <div style="display: flex; justify-content: space-between; margin-top: 10px; font-size: 12px; background: #f8fafc; padding: 6px 12px; border-radius: 4px; border: 1px solid #e2e8f0;">
+                        <span>Folio: <strong>@(_solicitud.SolicitudVacacionesId > 0 ? $"VAC-{_solicitud.SolicitudVacacionesId:D5}" : "PRELIMINAR")</strong></span>
+                        <span>Fecha de Solicitud: <strong>@_solicitud.FechaSolicitud.ToString("dd/MM/yyyy")</strong></span>
+                        <span>Estado: <strong>@_solicitud.Estado.ToUpperInvariant()</strong></span>
+                    </div>
+                </div>
+
+                <!-- Contenido en 2 columnas -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                    <!-- Datos del Empleado -->
+                    <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px;">
+                        <h3 style="color: #1976d2; font-size: 13px; margin: 0 0 10px 0; padding-bottom: 4px; border-bottom: 2px solid #1976d2; text-transform: uppercase;">
+                            1. Datos del Empleado
+                        </h3>
+                        <table style="width: 100%; font-size: 11.5px; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 4px 0; font-weight: bold; width: 42%; color: #475569;">No. Nómina:</td>
+                                <td style="padding: 4px 0; font-weight: bold;">@_solicitud.NumeroNomina</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 4px 0; font-weight: bold; color: #475569;">Nombre Completo:</td>
+                                <td style="padding: 4px 0; font-weight: bold; color: #0f172a;">@_solicitud.EmpleadoNombre</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 4px 0; font-weight: bold; color: #475569;">Departamento:</td>
+                                <td style="padding: 4px 0;">@(string.IsNullOrWhiteSpace(_solicitud.DepartamentoNombre) ? "General" : _solicitud.DepartamentoNombre)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 4px 0; font-weight: bold; color: #475569;">Puesto:</td>
+                                <td style="padding: 4px 0;">@(string.IsNullOrWhiteSpace(_solicitud.PuestoNombre) ? "No especificado" : _solicitud.PuestoNombre)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 4px 0; font-weight: bold; color: #475569;">Fecha de Ingreso:</td>
+                                <td style="padding: 4px 0; color: #1976d2; font-weight: bold;">
+                                    @(_solicitud.FechaIngresoEmpleado.HasValue ? _solicitud.FechaIngresoEmpleado.Value.ToString("dd/MM/yyyy") : "No registrada")
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 4px 0; font-weight: bold; color: #475569;">Antigüedad Cumplida:</td>
+                                <td style="padding: 4px 0; font-weight: bold;">@_solicitud.AntiguedadAnios año(s) de servicio</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <!-- Periodo Vacacional y Control de Días -->
+                    <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px;">
+                        <h3 style="color: #1976d2; font-size: 13px; margin: 0 0 10px 0; padding-bottom: 4px; border-bottom: 2px solid #1976d2; text-transform: uppercase;">
+                            2. Periodo Vacacional y Control de Días
+                        </h3>
+                        <table style="width: 100%; font-size: 11.5px; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 4px 0; font-weight: bold; width: 48%; color: #475569;">Periodo que Generó:</td>
+                                <td style="padding: 4px 0; font-weight: bold;">
+                                    @(_solicitud.FechaInicioPeriodoGenerador.HasValue && _solicitud.FechaFinPeriodoGenerador.HasValue
+                                        ? $"{_solicitud.FechaInicioPeriodoGenerador.Value:dd/MM/yyyy} al {_solicitud.FechaFinPeriodoGenerador.Value:dd/MM/yyyy}"
+                                        : $"Ciclo {_solicitud.AnioPeriodo}")
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 4px 0; font-weight: bold; color: #475569;">Periodo de Goce:</td>
+                                <td style="padding: 4px 0; color: #1976d2; font-weight: bold;">
+                                    @(_solicitud.FechaInicioPeriodoGoce.HasValue && _solicitud.FechaFinPeriodoGoce.HasValue
+                                        ? $"{_solicitud.FechaInicioPeriodoGoce.Value:dd/MM/yyyy} al {_solicitud.FechaFinPeriodoGoce.Value:dd/MM/yyyy}"
+                                        : "Año en curso")
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 4px 0; font-weight: bold; color: #475569;">Días por Antigüedad:</td>
+                                <td style="padding: 4px 0; font-weight: bold;">@_solicitud.DiasCorrespondientesPeriodo día(s)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 4px 0; font-weight: bold; color: #475569;">Días Disfrutados Previos:</td>
+                                <td style="padding: 4px 0;">@_solicitud.DiasDisfrutadosPeriodo día(s)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 4px 0; font-weight: bold; color: #475569;">Días en Esta Solicitud:</td>
+                                <td style="padding: 4px 0; color: #1976d2; font-weight: bold; font-size: 13px;">@_solicitud.DiasSolicitados día(s)</td>
+                            </tr>
+                            <tr style="border-top: 1px solid #cbd5e1;">
+                                <td style="padding: 5px 0 0 0; font-weight: bold; color: #475569;">Saldo Pendiente Restante:</td>
+                                <td style="padding: 5px 0 0 0; color: #15803d; font-weight: bold; font-size: 13px;">
+                                    @(CalcularSaldoRestante()) día(s)
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Detalle de Fechas Solicitadas -->
+                <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+                    <h3 style="color: #1976d2; font-size: 13px; margin: 0 0 10px 0; padding-bottom: 4px; border-bottom: 2px solid #1976d2; text-transform: uppercase;">
+                        3. Detalle del Periodo Solicitado a Disfrutar
+                    </h3>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: center;">
+                        <thead>
+                            <tr style="background-color: #1976d2; color: white;">
+                                <th style="padding: 7px; border: 1px solid #cbd5e1;">Fecha de Inicio de Vacaciones</th>
+                                <th style="padding: 7px; border: 1px solid #cbd5e1;">Fecha de Término de Vacaciones</th>
+                                <th style="padding: 7px; border: 1px solid #cbd5e1;">Total Días Solicitados</th>
+                                <th style="padding: 7px; border: 1px solid #cbd5e1;">Fecha de Reincorporación a Labores</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="background-color: #f8fafc; font-weight: bold; font-size: 13px;">
+                                <td style="padding: 8px; border: 1px solid #cbd5e1;">@_solicitud.FechaInicio.ToString("dd/MM/yyyy")</td>
+                                <td style="padding: 8px; border: 1px solid #cbd5e1;">@_solicitud.FechaFin.ToString("dd/MM/yyyy")</td>
+                                <td style="padding: 8px; border: 1px solid #cbd5e1; color: #1976d2;">@_solicitud.DiasSolicitados día(s)</td>
+                                <td style="padding: 8px; border: 1px solid #cbd5e1; color: #15803d;">
+                                    @_solicitud.FechaRegreso.ToString("dd/MM/yyyy")
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div style="margin-top: 10px; font-size: 11.5px;">
+                        <strong>Observaciones del Solicitante:</strong>
+                        <div style="margin-top: 4px; padding: 6px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; min-height: 22px;">
+                            @(string.IsNullOrWhiteSpace(_solicitud.Observaciones) ? "Sin observaciones adicionales." : _solicitud.Observaciones)
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Nota normativa y Conformidad del Empleado -->
+                <div style="background-color: #f8fafc; padding: 10px 12px; border-radius: 4px; border-left: 4px solid #1976d2; font-size: 10.5px; color: #334155; margin-bottom: 22px; line-height: 1.4;">
+                    <strong>Declaración de Conformidad:</strong> Por medio de la presente solicito disfrutar de <strong>@_solicitud.DiasSolicitados día(s)</strong> de vacaciones correspondientes al periodo generador del
+                    <strong>@(_solicitud.FechaInicioPeriodoGenerador?.ToString("dd/MM/yyyy") ?? "-") al @(_solicitud.FechaFinPeriodoGenerador?.ToString("dd/MM/yyyy") ?? "-")</strong>,
+                    dentro de mi periodo vigente de goce y disfrute del <strong>@(_solicitud.FechaInicioPeriodoGoce?.ToString("dd/MM/yyyy") ?? "-") al @(_solicitud.FechaFinPeriodoGoce?.ToString("dd/MM/yyyy") ?? "-")</strong>.
+                    Estoy enterado(a) de que los días pendientes no disfrutados al término de la fecha límite del periodo de goce (@(_solicitud.FechaFinPeriodoGoce?.ToString("dd/MM/yyyy") ?? "-")) se cancelarán automáticamente el día @(_solicitud.FechaFinPeriodoGoce?.AddDays(1).ToString("dd/MM/yyyy") ?? "-") al iniciar el nuevo periodo.
+                </div>
+
+                <!-- 4 Apartados de Firma en la parte inferior de la hoja -->
+                <div style="margin-top: 25px; padding-top: 10px; border-top: 2px solid #334155;">
+                    <div style="text-align: center; font-size: 11px; font-weight: bold; color: #475569; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 0.5px;">
+                        Firmas de Conformidad y Autorización
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;">
+                        <!-- 1. Firma del Empleado -->
+                        <div style="text-align: center; border: 1px solid #cbd5e1; border-radius: 4px; padding: 10px 6px 8px 6px; background: #fafafa;">
+                            <div style="height: 55px;"></div>
+                            <div style="border-top: 1px solid #333; padding-top: 6px;">
+                                <strong style="font-size: 10.5px; display: block;">FIRMA DEL EMPLEADO</strong>
+                                <span style="font-size: 9.5px; color: #555; display: block; margin-top: 2px;">@_solicitud.EmpleadoNombre</span>
+                                <span style="font-size: 9px; color: #777;">Solicitante / Conformidad</span>
+                            </div>
+                        </div>
+
+                        <!-- 2. Firma del Jefe de Departamento -->
+                        <div style="text-align: center; border: 1px solid #cbd5e1; border-radius: 4px; padding: 10px 6px 8px 6px; background: #fafafa;">
+                            <div style="height: 55px;"></div>
+                            <div style="border-top: 1px solid #333; padding-top: 6px;">
+                                <strong style="font-size: 10.5px; display: block;">JEFE DE DEPARTAMENTO</strong>
+                                <span style="font-size: 9.5px; color: #555; display: block; margin-top: 2px;">@(string.IsNullOrWhiteSpace(_solicitud.DepartamentoNombre) ? "Jefe Inmediato" : _solicitud.DepartamentoNombre)</span>
+                                <span style="font-size: 9px; color: #777;">Vo. Bo. y Autorización</span>
+                            </div>
+                        </div>
+
+                        <!-- 3. Firma de Contabilidad/Nómina -->
+                        <div style="text-align: center; border: 1px solid #cbd5e1; border-radius: 4px; padding: 10px 6px 8px 6px; background: #fafafa;">
+                            <div style="height: 55px;"></div>
+                            <div style="border-top: 1px solid #333; padding-top: 6px;">
+                                <strong style="font-size: 10.5px; display: block;">CONTABILIDAD / NÓMINA</strong>
+                                <span style="font-size: 9.5px; color: #555; display: block; margin-top: 2px;">Control de Nómina</span>
+                                <span style="font-size: 9px; color: #777;">Registro y Validación</span>
+                            </div>
+                        </div>
+
+                        <!-- 4. Firma de Recursos Humanos -->
+                        <div style="text-align: center; border: 1px solid #cbd5e1; border-radius: 4px; padding: 10px 6px 8px 6px; background: #fafafa;">
+                            <div style="height: 55px;"></div>
+                            <div style="border-top: 1px solid #333; padding-top: 6px;">
+                                <strong style="font-size: 10.5px; display: block;">RECURSOS HUMANOS</strong>
+                                <span style="font-size: 9.5px; color: #555; display: block; margin-top: 2px;">Capital Humano</span>
+                                <span style="font-size: 9px; color: #777;">Validación de Saldos</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pie de documento -->
+                <div style="margin-top: 18px; text-align: center; font-size: 9.5px; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 8px;">
+                    <p style="margin: 0;">Documento generado el @DateTime.Now.ToString("dd/MM/yyyy HH:mm") — Módulo de Control de Vacaciones UcayNet</p>
+                </div>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="@Cerrar">Cerrar</MudButton>
+        <MudButton Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Print"
+                   OnClick="@ImprimirFormato"
+                   Disabled="@(_loading || _solicitud == null || _generandoPdf)"
+                   Variant="Variant.Filled">
+            @if (_generandoPdf)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Preparando Impresión / PDF...</span>
+            }
+            else
+            {
+                <span>Imprimir / Descargar Formato</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    public MudBlazor.IDialogReference? DialogReference { get; set; }
+
+    [Parameter]
+    public int SolicitudVacacionesId { get; set; }
+
+    [Parameter]
+    public SolicitudVacacionesDetailDto? SolicitudPrevia { get; set; }
+
+    private SolicitudVacacionesDetailDto? _solicitud;
+    private bool _loading = true;
+    private bool _generandoPdf = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarSolicitudAsync();
+    }
+
+    private async Task CargarSolicitudAsync()
+    {
+        _loading = true;
+        try
+        {
+            if (SolicitudPrevia != null)
+            {
+                _solicitud = SolicitudPrevia;
+            }
+            else if (SolicitudVacacionesId > 0)
+            {
+                _solicitud = await VacacionesApi.GetSolicitudByIdAsync(SolicitudVacacionesId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar el formato de solicitud: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private int CalcularSaldoRestante()
+    {
+        if (_solicitud == null) return 0;
+        if (_solicitud.Estado == "Aprobada")
+        {
+            // Cuando ya está aprobada, DiasPendientesPeriodo ya tiene descontados los días solicitados
+            return _solicitud.DiasPendientesPeriodo;
+        }
+        return Math.Max(0, _solicitud.DiasPendientesPeriodo - _solicitud.DiasSolicitados);
+    }
+
+    private void Cerrar()
+    {
+        DialogReference?.Close();
+    }
+
+    private async Task ImprimirFormato()
+    {
+        if (_solicitud == null) return;
+
+        _generandoPdf = true;
+        StateHasChanged();
+
+        try
+        {
+            var html = GenerarHTMLCompleto();
+            var folioNombre = _solicitud.SolicitudVacacionesId > 0
+                ? $"Solicitud_Vacaciones_{_solicitud.SolicitudVacacionesId:D5}_{DateTime.Now:yyyyMMdd}.pdf"
+                : $"Solicitud_Vacaciones_{_solicitud.NumeroNomina}_{DateTime.Now:yyyyMMdd}.pdf";
+
+            await JSRuntime.InvokeVoidAsync("generarPDFDesdeHTML", html, folioNombre);
+            Snackbar.Add("Formato de solicitud listo para imprimir / guardar en PDF.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al generar el formato imprimible: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _generandoPdf = false;
+            StateHasChanged();
+        }
+    }
+
+    private string GenerarHTMLCompleto()
+    {
+        if (_solicitud == null) return string.Empty;
+
+        string empresa = string.IsNullOrWhiteSpace(_solicitud.EmpresaNombre)
+            ? "SISTEMA DE GESTIÓN DE CAPITAL HUMANO UCAYNET"
+            : _solicitud.EmpresaNombre;
+        string folio = _solicitud.SolicitudVacacionesId > 0
+            ? $"VAC-{_solicitud.SolicitudVacacionesId:D5}"
+            : "PRELIMINAR";
+        string fechaIngreso = _solicitud.FechaIngresoEmpleado.HasValue
+            ? _solicitud.FechaIngresoEmpleado.Value.ToString("dd/MM/yyyy")
+            : "No registrada";
+        string periodoGenerador = _solicitud.FechaInicioPeriodoGenerador.HasValue && _solicitud.FechaFinPeriodoGenerador.HasValue
+            ? $"{_solicitud.FechaInicioPeriodoGenerador.Value:dd/MM/yyyy} al {_solicitud.FechaFinPeriodoGenerador.Value:dd/MM/yyyy}"
+            : $"Ciclo {_solicitud.AnioPeriodo}";
+        string periodoGoce = _solicitud.FechaInicioPeriodoGoce.HasValue && _solicitud.FechaFinPeriodoGoce.HasValue
+            ? $"{_solicitud.FechaInicioPeriodoGoce.Value:dd/MM/yyyy} al {_solicitud.FechaFinPeriodoGoce.Value:dd/MM/yyyy}"
+            : "Año en curso";
+        string fechaCancelacion = _solicitud.FechaFinPeriodoGoce.HasValue
+            ? _solicitud.FechaFinPeriodoGoce.Value.AddDays(1).ToString("dd/MM/yyyy")
+            : "-";
+        string fechaRegreso = _solicitud.FechaRegreso.ToString("dd/MM/yyyy");
+        string observaciones = string.IsNullOrWhiteSpace(_solicitud.Observaciones)
+            ? "Sin observaciones adicionales."
+            : _solicitud.Observaciones;
+        int saldoRestante = CalcularSaldoRestante();
+
+        var sb = new StringBuilder();
+        sb.AppendLine($@"<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8'>
+    <title>Solicitud de Vacaciones - {folio}</title>
+    <style>
+        @page {{ size: letter; margin: 12mm; }}
+        body {{ font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; color: #222; }}
+        .container {{ max-width: 210mm; margin: 0 auto; }}
+        .header {{ text-align: center; margin-bottom: 16px; border-bottom: 3px solid #1976d2; padding-bottom: 10px; }}
+        .empresa {{ font-size: 13px; font-weight: bold; color: #444; text-transform: uppercase; letter-spacing: 0.5px; }}
+        h2 {{ color: #1976d2; margin: 4px 0 0 0; font-size: 19px; }}
+        .header-info {{ display: flex; justify-content: space-between; margin-top: 8px; font-size: 11.5px; background: #f8fafc; padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 4px; }}
+        .two-columns {{ display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }}
+        .card {{ border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; }}
+        h3 {{ color: #1976d2; font-size: 12.5px; margin: 0 0 8px 0; padding-bottom: 4px; border-bottom: 2px solid #1976d2; text-transform: uppercase; }}
+        table.info-table {{ width: 100%; font-size: 11px; border-collapse: collapse; }}
+        table.info-table td {{ padding: 4px 0; }}
+        .label {{ font-weight: bold; color: #475569; width: 46%; }}
+        .fechas-table {{ width: 100%; border-collapse: collapse; font-size: 11.5px; text-align: center; }}
+        .fechas-table th {{ background-color: #1976d2; color: white; padding: 6px; border: 1px solid #cbd5e1; }}
+        .fechas-table td {{ padding: 8px; border: 1px solid #cbd5e1; font-weight: bold; background: #f8fafc; }}
+        .obs-box {{ margin-top: 8px; padding: 6px 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 11px; min-height: 20px; }}
+        .declaracion {{ background-color: #f8fafc; padding: 10px 12px; border-radius: 4px; border-left: 4px solid #1976d2; font-size: 10.5px; color: #334155; margin-bottom: 20px; line-height: 1.45; }}
+        .firmas-section {{ margin-top: 24px; padding-top: 10px; border-top: 2px solid #334155; }}
+        .firmas-title {{ text-align: center; font-size: 11px; font-weight: bold; color: #475569; margin-bottom: 14px; text-transform: uppercase; }}
+        .firmas-grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }}
+        .firma-card {{ text-align: center; border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px 6px; background: #fafafa; }}
+        .firma-espacio {{ height: 55px; }}
+        .firma-linea {{ border-top: 1px solid #333; padding-top: 5px; }}
+        .firma-rol {{ font-size: 10px; font-weight: bold; display: block; }}
+        .firma-nombre {{ font-size: 9.5px; color: #444; display: block; margin-top: 2px; }}
+        .firma-sub {{ font-size: 8.5px; color: #666; }}
+        .footer {{ margin-top: 16px; text-align: center; font-size: 9.5px; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 6px; }}
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <div class='header'>
+            <div class='empresa'>{empresa}</div>
+            <h2>SOLICITUD Y AUTORIZACIÓN DE VACACIONES</h2>
+            <div class='header-info'>
+                <span>Folio: <strong>{folio}</strong></span>
+                <span>Fecha de Solicitud: <strong>{_solicitud.FechaSolicitud:dd/MM/yyyy}</strong></span>
+                <span>Estado: <strong>{_solicitud.Estado.ToUpperInvariant()}</strong></span>
+            </div>
+        </div>
+
+        <div class='two-columns'>
+            <div class='card'>
+                <h3>1. Datos del Empleado</h3>
+                <table class='info-table'>
+                    <tr><td class='label'>No. Nómina:</td><td><strong>{_solicitud.NumeroNomina}</strong></td></tr>
+                    <tr><td class='label'>Nombre Completo:</td><td><strong>{_solicitud.EmpleadoNombre}</strong></td></tr>
+                    <tr><td class='label'>Departamento:</td><td>{(string.IsNullOrWhiteSpace(_solicitud.DepartamentoNombre) ? "General" : _solicitud.DepartamentoNombre)}</td></tr>
+                    <tr><td class='label'>Puesto:</td><td>{(string.IsNullOrWhiteSpace(_solicitud.PuestoNombre) ? "No especificado" : _solicitud.PuestoNombre)}</td></tr>
+                    <tr><td class='label'>Fecha de Ingreso:</td><td><strong style='color: #1976d2;'>{fechaIngreso}</strong></td></tr>
+                    <tr><td class='label'>Antigüedad Cumplida:</td><td><strong>{_solicitud.AntiguedadAnios} año(s) de servicio</strong></td></tr>
+                </table>
+            </div>
+
+            <div class='card'>
+                <h3>2. Periodo Vacacional y Control de Días</h3>
+                <table class='info-table'>
+                    <tr><td class='label'>Periodo que Generó:</td><td><strong>{periodoGenerador}</strong></td></tr>
+                    <tr><td class='label'>Periodo de Goce:</td><td><strong style='color: #1976d2;'>{periodoGoce}</strong></td></tr>
+                    <tr><td class='label'>Días por Antigüedad:</td><td><strong>{_solicitud.DiasCorrespondientesPeriodo} día(s)</strong></td></tr>
+                    <tr><td class='label'>Días Disfrutados Previos:</td><td>{_solicitud.DiasDisfrutadosPeriodo} día(s)</td></tr>
+                    <tr><td class='label'>Días en Esta Solicitud:</td><td><strong style='color: #1976d2; font-size: 12.5px;'>{_solicitud.DiasSolicitados} día(s)</strong></td></tr>
+                    <tr style='border-top: 1px solid #cbd5e1;'><td class='label' style='padding-top: 5px;'>Saldo Pendiente Restante:</td><td style='padding-top: 5px;'><strong style='color: #15803d; font-size: 12.5px;'>{saldoRestante} día(s)</strong></td></tr>
+                </table>
+            </div>
+        </div>
+
+        <div class='card' style='margin-bottom: 14px;'>
+            <h3>3. Detalle del Periodo Solicitado a Disfrutar</h3>
+            <table class='fechas-table'>
+                <thead>
+                    <tr>
+                        <th>Fecha de Inicio de Vacaciones</th>
+                        <th>Fecha de Término de Vacaciones</th>
+                        <th>Total Días Solicitados</th>
+                        <th>Fecha de Reincorporación a Labores</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{_solicitud.FechaInicio:dd/MM/yyyy}</td>
+                        <td>{_solicitud.FechaFin:dd/MM/yyyy}</td>
+                        <td style='color: #1976d2;'>{_solicitud.DiasSolicitados} día(s)</td>
+                        <td style='color: #15803d;'>{fechaRegreso}</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div style='margin-top: 8px; font-size: 11px;'>
+                <strong>Observaciones del Solicitante:</strong>
+                <div class='obs-box'>{observaciones}</div>
+            </div>
+        </div>
+
+        <div class='declaracion'>
+            <strong>Declaración de Conformidad:</strong> Por medio de la presente solicito disfrutar de <strong>{_solicitud.DiasSolicitados} día(s)</strong> de vacaciones correspondientes al periodo generador del <strong>{periodoGenerador}</strong>, dentro de mi periodo vigente de goce y disfrute del <strong>{periodoGoce}</strong>. Estoy enterado(a) de que los días pendientes no disfrutados al término de la fecha límite del periodo de goce ({(_solicitud.FechaFinPeriodoGoce?.ToString("dd/MM/yyyy") ?? "-")}) se cancelarán automáticamente el día <strong>{fechaCancelacion}</strong> al iniciar el nuevo periodo.
+        </div>
+
+        <div class='firmas-section'>
+            <div class='firmas-title'>Firmas de Conformidad y Autorización</div>
+            <div class='firmas-grid'>
+                <div class='firma-card'>
+                    <div class='firma-espacio'></div>
+                    <div class='firma-linea'>
+                        <span class='firma-rol'>FIRMA DEL EMPLEADO</span>
+                        <span class='firma-nombre'>{_solicitud.EmpleadoNombre}</span>
+                        <span class='firma-sub'>Solicitante / Conformidad</span>
+                    </div>
+                </div>
+                <div class='firma-card'>
+                    <div class='firma-espacio'></div>
+                    <div class='firma-linea'>
+                        <span class='firma-rol'>JEFE DE DEPARTAMENTO</span>
+                        <span class='firma-nombre'>{(string.IsNullOrWhiteSpace(_solicitud.DepartamentoNombre) ? "Jefe Inmediato" : _solicitud.DepartamentoNombre)}</span>
+                        <span class='firma-sub'>Vo. Bo. y Autorización</span>
+                    </div>
+                </div>
+                <div class='firma-card'>
+                    <div class='firma-espacio'></div>
+                    <div class='firma-linea'>
+                        <span class='firma-rol'>CONTABILIDAD / NÓMINA</span>
+                        <span class='firma-nombre'>Control de Nómina</span>
+                        <span class='firma-sub'>Registro y Validación</span>
+                    </div>
+                </div>
+                <div class='firma-card'>
+                    <div class='firma-espacio'></div>
+                    <div class='firma-linea'>
+                        <span class='firma-rol'>RECURSOS HUMANOS</span>
+                        <span class='firma-nombre'>Capital Humano</span>
+                        <span class='firma-sub'>Validación de Saldos</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class='footer'>
+            Documento generado el {DateTime.Now:dd/MM/yyyy HH:mm} — Módulo de Control de Vacaciones UcayNet
+        </div>
+    </div>
+</body>
+</html>");
+
+        return sb.ToString();
+    }
+}

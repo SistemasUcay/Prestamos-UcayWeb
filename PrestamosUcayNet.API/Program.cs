@@ -26,7 +26,11 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     ?? "Server=localhost;Database=UcayNetDB;Trusted_Connection=True;Encrypt=False;";
 
 builder.Services.AddDbContext<UcayNetDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseSqlServer(connectionString, sqlOptions =>
+        sqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorNumbersToAdd: null)));
 
 // ── ASP.NET Core Identity ──
 builder.Services.AddIdentity<UsuarioSistema, IdentityRole>(options =>
@@ -89,6 +93,7 @@ builder.Services.AddScoped<IParametrosService, ParametrosService>();
 builder.Services.AddScoped<IPrestamosService, InfraServices.PrestamosService>();
 builder.Services.AddScoped<ICobrosService, InfraServices.CobrosService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IVacacionesService, InfraServices.VacacionesService>();
 
 
 // ── Controllers y CORS ──
@@ -102,8 +107,10 @@ builder.Services.AddOpenApi();
 var app = builder.Build();
 
 // ── Seed de datos iniciales (roles + usuario admin) ──
-using (var scope = app.Services.CreateScope())
+// En producción se recomienda ejecutar seed de forma controlada (migraciones/pipeline)
+if (app.Environment.IsDevelopment())
 {
+    using var scope = app.Services.CreateScope();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<UsuarioSistema>>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     await IdentitySeedData.SeedAsync(userManager, roleManager);

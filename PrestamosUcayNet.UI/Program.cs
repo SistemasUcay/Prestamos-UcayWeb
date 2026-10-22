@@ -32,6 +32,7 @@ builder.Services.AddScoped<CatalogosApiService>();
 builder.Services.AddScoped<ParametrosApiService>();
 builder.Services.AddScoped<DashboardApiService>();
 builder.Services.AddScoped<CobrosApiService>();
+builder.Services.AddScoped<VacacionesApiService>();
 
 
 // Formato numérico y de fechas de México

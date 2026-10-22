@@ -73,7 +73,48 @@
     }
 </style>
 
+@inject AuthenticationStateProvider AuthStateProvider
+
 <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6 mb-8 animate-fade-in">
+    @if (_esSoloEmpleado)
+    {
+        <div class="mb-6">
+            <MudText Typo="Typo.h4" Style="font-weight: 700;">Bienvenido, @_nombreUsuario</MudText>
+            <MudText Typo="Typo.body1" Color="Color.Secondary">Portal de Autoservicio del Colaborador — Consulta tus préstamos y vacaciones.</MudText>
+        </div>
+
+        <MudGrid Spacing="4">
+            <MudItem xs="12" md="6">
+                <MudPaper Class="kpi-card pa-6" Style="background: linear-gradient(135deg, #064E3B 0%, #10B981 100%); height: 180px;"
+                          @onclick="@(() => Navigation.NavigateTo("mis-prestamos"))">
+                    <div>
+                        <MudText Typo="Typo.overline" Style="opacity: 0.9; letter-spacing: 1px;">CONSULTA DE CRÉDITOS</MudText>
+                        <MudText Typo="Typo.h4" Style="font-weight: 800;" Class="mt-1">Mis Préstamos</MudText>
+                        <MudText Typo="Typo.body2" Style="opacity: 0.9;" Class="mt-2">
+                            Revisa tus préstamos vigentes, tabla de amortización, saldos pendientes e historial de préstamos liquidados.
+                        </MudText>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.AccountBalanceWallet" Class="kpi-icon" />
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" md="6">
+                <MudPaper Class="kpi-card pa-6" Style="background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%); height: 180px;"
+                          @onclick="@(() => Navigation.NavigateTo("gestion-vacaciones"))">
+                    <div>
+                        <MudText Typo="Typo.overline" Style="opacity: 0.9; letter-spacing: 1px;">CAPITAL HUMANO</MudText>
+                        <MudText Typo="Typo.h4" Style="font-weight: 800;" Class="mt-1">Mis Vacaciones</MudText>
+                        <MudText Typo="Typo.body2" Style="opacity: 0.9;" Class="mt-2">
+                            Consulta tus días generados por antigüedad, saldo disponible por disfrutar, periodos anuales y solicita vacaciones.
+                        </MudText>
+                    </div>
+                    <MudIcon Icon="@Icons.Material.Filled.BeachAccess" Class="kpi-icon" />
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+    else
+    {
     @* Encabezado del Dashboard *@
     <div class="d-flex align-center justify-space-between mb-4">
         <div>
@@ -464,16 +505,36 @@
 
         </MudGrid>
     }
+    }
 </MudContainer>
 
 @code {
     private DashboardDto? _dashboard;
     private bool _loading = true;
+    private bool _esSoloEmpleado = false;
+    private string _nombreUsuario = "Colaborador";
     private List<ChartSeries<double>> _chartSeries = new();
     private string[] _chartLabels = Array.Empty<string>();
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _nombreUsuario = user.Identity?.Name ?? "Colaborador";
+
+        _esSoloEmpleado = user.IsInRole("Empleado") &&
+                          !user.IsInRole("Administrador") &&
+                          !user.IsInRole("Supervisor") &&
+                          !user.IsInRole("GestorPrestamos") &&
+                          !user.IsInRole("RecursosHumanos") &&
+                          !user.IsInRole("Consultor");
+
+        if (_esSoloEmpleado)
+        {
+            _loading = false;
+            return;
+        }
+
         await CargarDashboard();
     }
 

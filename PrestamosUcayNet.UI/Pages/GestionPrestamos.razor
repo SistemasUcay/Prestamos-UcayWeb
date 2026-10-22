@@ -3,7 +3,7 @@
 @using PrestamosUcayNet.Application.DTOs
 @using PrestamosUcayNet.UI.Services
 @using MudBlazor
-@attribute [Authorize(Roles = "Administrador,Gerente,Contador")]
+@attribute [Authorize(Roles = "Administrador,Supervisor,GestorPrestamos,Consultor")]
 @inject PrestamosApiService PrestamosApi
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -42,15 +42,19 @@
                                 <MudIconButton Icon="@Icons.Material.Filled.Description" Color="Color.Primary" Size="Size.Small"
                                                OnClick="@(() => VerSolicitudEnModal(context.Item.PrestamoId))" />
                             </MudTooltip>
-                            <MudTooltip Text="Devolver a evaluación">
-                                <MudIconButton Icon="@Icons.Material.Filled.Undo" Color="Color.Warning" Size="Size.Small"
-                                               OnClick="@(() => DevolverAEvaluacion(context.Item))" />
-                            </MudTooltip>
-                            <MudButton Size="@Size.Small" Variant="@Variant.Filled" Color="@Color.Success"
-                                       StartIcon="@Icons.Material.Filled.CheckCircle"
-                                       OnClick="@(() => AbrirActivacion(context.Item))">
-                                Activar
-                            </MudButton>
+                            <AuthorizeView Roles="Administrador,Supervisor" Context="devolverCtx">
+                                <MudTooltip Text="Devolver a evaluación">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Undo" Color="Color.Warning" Size="Size.Small"
+                                                   OnClick="@(() => DevolverAEvaluacion(context.Item))" />
+                                </MudTooltip>
+                            </AuthorizeView>
+                            <AuthorizeView Roles="Administrador,Supervisor,GestorPrestamos" Context="activarCtx">
+                                <MudButton Size="@Size.Small" Variant="@Variant.Filled" Color="@Color.Success"
+                                           StartIcon="@Icons.Material.Filled.CheckCircle"
+                                           OnClick="@(() => AbrirActivacion(context.Item))">
+                                    Activar
+                                </MudButton>
+                            </AuthorizeView>
                         </CellTemplate>
                     </TemplateColumn>
                     <PropertyColumn Property="x => x.PrestamoId" Title="ID Préstamo" />
@@ -104,16 +108,20 @@
                                 <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
                                                OnClick="@(() => VerDetalle(context.Item.PrestamoId))" />
                             </MudTooltip>
-                            <MudTooltip Text="Editar">
-                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                                               OnClick="@(() => AbrirEdicion(context.Item))" />
-                            </MudTooltip>
+                            <AuthorizeView Roles="Administrador,Supervisor,GestorPrestamos" Context="editarCtx">
+                                <MudTooltip Text="Editar">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                                   OnClick="@(() => AbrirEdicion(context.Item))" />
+                                </MudTooltip>
+                            </AuthorizeView>
                             @if (context.Item.Estado == "A")
                             {
-                                <MudTooltip Text="Cancelar préstamo">
-                                    <MudIconButton Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small"
-                                                   OnClick="@(() => ConfirmarCancelacion(context.Item))" />
-                                </MudTooltip>
+                                <AuthorizeView Roles="Administrador,Supervisor" Context="cancelarCtx">
+                                    <MudTooltip Text="Cancelar préstamo">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small"
+                                                       OnClick="@(() => ConfirmarCancelacion(context.Item))" />
+                                    </MudTooltip>
+                                </AuthorizeView>
                             }
                         </CellTemplate>
                     </TemplateColumn>

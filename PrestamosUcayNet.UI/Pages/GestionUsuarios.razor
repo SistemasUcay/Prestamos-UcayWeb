@@ -1,6 +1,8 @@
 @page "/gestion-usuarios"
+@using PrestamosUcayNet.Application.DTOs
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador")]
 @inject UsuariosApiService UsuariosService
+@inject EmpleadosApiService EmpleadosService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
@@ -11,7 +13,7 @@
     Gestión de Usuarios
 </MudText>
 <MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mb-4">
-    Administra los usuarios y roles del sistema
+    Administra los usuarios, vinculación con empleados y roles del sistema
 </MudText>
 
 <MudPaper Elevation="2" Class="pa-4" Style="border-radius: 12px;">
@@ -41,6 +43,21 @@
         <Columns>
             <PropertyColumn Property="x => x.NombreCompleto" Title="Nombre Completo" />
             <PropertyColumn Property="x => x.Email" Title="Correo" />
+            <TemplateColumn Title="Empleado Vinculado">
+                <CellTemplate>
+                    @if (context.Item.EmpleadoId.HasValue)
+                    {
+                        var emp = _empleados.FirstOrDefault(e => e.EmpleadoId == context.Item.EmpleadoId.Value);
+                        <MudChip T="string" Size="Size.Small" Color="Color.Default" Icon="@Icons.Material.Filled.Badge">
+                            @(emp != null ? $"{emp.NumeroNomina} - {emp.NombreCompleto}" : $"ID #{context.Item.EmpleadoId}")
+                        </MudChip>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Sin vincular</MudText>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
             <TemplateColumn Title="Roles">
                 <CellTemplate>
                     @foreach (var rol in context.Item.Roles)
@@ -103,6 +120,14 @@
         </MudText>
     </TitleContent>
     <DialogContent>
+        <MudSelect T="int?" @bind-Value="_nuevoUsuario.EmpleadoId" Label="Vincular con Empleado (Opcional)"
+            Variant="Variant.Outlined" Class="mb-3" Clearable="true"
+            SelectedValuesChanged="OnNuevoEmpleadoSeleccionado">
+            @foreach (var emp in _empleados)
+            {
+                <MudSelectItem T="int?" Value="@emp.EmpleadoId">@emp.NumeroNomina - @emp.NombreCompleto</MudSelectItem>
+            }
+        </MudSelect>
         <MudTextField @bind-Value="_nuevoUsuario.NombreCompleto" Label="Nombre Completo"
             Variant="Variant.Outlined" Class="mb-3" Required="true" />
         <MudTextField @bind-Value="_nuevoUsuario.Email" Label="Correo Electrónico"
@@ -143,6 +168,13 @@
             Variant="Variant.Outlined" Class="mb-3" Required="true" />
         <MudTextField @bind-Value="_editarUsuario.Email" Label="Correo Electrónico"
             Variant="Variant.Outlined" InputType="InputType.Email" Class="mb-3" Required="true" />
+        <MudSelect T="int?" @bind-Value="_editarUsuario.EmpleadoId" Label="Empleado Vinculado (Requerido para rol Empleado)"
+            Variant="Variant.Outlined" Class="mb-3" Clearable="true">
+            @foreach (var emp in _empleados)
+            {
+                <MudSelectItem T="int?" Value="@emp.EmpleadoId">@emp.NumeroNomina - @emp.NombreCompleto</MudSelectItem>
+            }
+        </MudSelect>
         <MudSelect T="string" Label="Roles" Variant="Variant.Outlined" Class="mb-3"
             MultiSelection="true" SelectedValues="_selectedRoles" SelectedValuesChanged="OnSelectedRolesChanged">
             @foreach (var rol in _rolesDisponibles)
@@ -218,6 +250,7 @@
 
 @code {
     private List<UsuarioListModel> _usuarios = [];
+    private List<EmpleadoListDto> _empleados = [];
     private List<string> _rolesDisponibles = [];
     private string _searchString = string.Empty;
     private bool _loading = true;
@@ -259,6 +292,7 @@
         {
             _usuarios = await UsuariosService.ObtenerTodosAsync();
             _rolesDisponibles = await UsuariosService.ObtenerRolesAsync();
+            _empleados = await EmpleadosService.GetEmpleadosAsync();
         }
         catch (Exception ex)
         {
@@ -272,6 +306,23 @@
     {
         _nuevoUsuario = new RegistroUsuarioModel();
         _showCrearDialog = true;
+    }
+
+    void OnNuevoEmpleadoSeleccionado()
+    {
+        if (_nuevoUsuario.EmpleadoId.HasValue)
+        {
+            var emp = _empleados.FirstOrDefault(e => e.EmpleadoId == _nuevoUsuario.EmpleadoId.Value);
+            if (emp != null)
+            {
+                if (string.IsNullOrWhiteSpace(_nuevoUsuario.NombreCompleto))
+                    _nuevoUsuario.NombreCompleto = emp.NombreCompleto;
+                if (string.IsNullOrWhiteSpace(_nuevoUsuario.Email) && !string.IsNullOrWhiteSpace(emp.Email))
+                    _nuevoUsuario.Email = emp.Email;
+                if (string.IsNullOrWhiteSpace(_nuevoUsuario.Rol) && _rolesDisponibles.Contains("Empleado"))
+                    _nuevoUsuario.Rol = "Empleado";
+            }
+        }
     }
 
     async Task CrearUsuario()
@@ -384,15 +435,18 @@
     static Color GetRolColor(string rol) => rol switch
     {
         "Administrador" => Color.Error,
-        "GestorPrestamos" => Color.Primary,
         "Supervisor" => Color.Warning,
+        "GestorPrestamos" => Color.Primary,
+        "RecursosHumanos" => Color.Secondary,
         "Consultor" => Color.Info,
+        "Empleado" => Color.Success,
         _ => Color.Default
     };
 
     static string GetRolDisplay(string rol) => rol switch
     {
         "GestorPrestamos" => "Gestor de Préstamos",
+        "RecursosHumanos" => "Recursos Humanos",
         _ => rol
     };
 }

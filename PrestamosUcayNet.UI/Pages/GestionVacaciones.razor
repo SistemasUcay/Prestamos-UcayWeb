@@ -1,0 +1,1061 @@
+@page "/gestion-vacaciones"
+@using MudBlazor
+@using PrestamosUcayNet.Application.DTOs
+@using PrestamosUcayNet.UI.Services
+@using PrestamosUcayNet.UI.Components.Dialogs
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador,Supervisor,RecursosHumanos,Consultor,Empleado")]
+@inject VacacionesApiService VacacionesService
+@inject EmpleadosApiService EmpleadosService
+@inject EmpresasApiService EmpresasService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>@(_esSoloEmpleado ? "Mis Vacaciones" : "Control de Vacaciones") — Préstamos UcayNet</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-1">
+    <MudIcon Icon="@Icons.Material.Filled.BeachAccess" Class="mr-2" Style="vertical-align: middle;" />
+    @(_esSoloEmpleado ? "Mis Vacaciones" : "Control de Vacaciones")
+</MudText>
+<MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mb-4">
+    @(_esSoloEmpleado
+        ? "Consulta tus días generados por antigüedad, periodos anuales, saldo disponible e historial de solicitudes"
+        : "Administración de días correspondientes, saldos anuales y autorizaciones de vacaciones")
+</MudText>
+
+<!-- ── Barra de Filtros y Acciones Principales ── -->
+<MudPaper Elevation="2" Class="pa-4 mb-4" Style="border-radius: 12px;">
+    <MudGrid Spacing="2" Class="align-center">
+        @if (!_esSoloEmpleado)
+        {
+            <MudItem xs="12" sm="6" md="3">
+                <MudSelect T="int?" Label="Filtrar por Empresa" @bind-Value="_filtroEmpresaId"
+                    AnchorOrigin="Origin.BottomCenter" Variant="Variant.Outlined" Margin="Margin.Dense"
+                    Clearable="true" SelectedValuesChanged="OnEmpresaChanged">
+                    @foreach (var emp in _empresas)
+                    {
+                        <MudSelectItem T="int?" Value="@emp.NumEmpresa">@emp.RazonSocial</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudSelect T="int?" Label="Empleado" @bind-Value="_filtroEmpleadoId"
+                    AnchorOrigin="Origin.BottomCenter" Variant="Variant.Outlined" Margin="Margin.Dense"
+                    Clearable="true" SelectedValuesChanged="OnEmpleadoChanged">
+                    @foreach (var emp in _empleadosFiltrados)
+                    {
+                        <MudSelectItem T="int?" Value="@emp.EmpleadoId">@emp.NumeroNomina - @emp.NombreCompleto</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+        }
+
+        <MudItem xs="12" sm="6" md="@(_esSoloEmpleado ? 6 : 2)">
+            <MudSelect T="string" Label="Estado Solicitud" @bind-Value="_filtroEstado"
+                AnchorOrigin="Origin.BottomCenter" Variant="Variant.Outlined" Margin="Margin.Dense"
+                Clearable="true" SelectedValuesChanged="CargarSolicitudes">
+                <MudSelectItem Value="@("Pendiente")">Pendientes</MudSelectItem>
+                <MudSelectItem Value="@("Aprobada")">Aprobadas</MudSelectItem>
+                <MudSelectItem Value="@("Rechazada")">Rechazadas</MudSelectItem>
+                <MudSelectItem Value="@("Cancelada")">Canceladas</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="@(_esSoloEmpleado ? 6 : 3)" Class="d-flex justify-end gap-2">
+            <AuthorizeView Roles="Administrador,Supervisor,RecursosHumanos,Empleado" Context="crearVacCtx">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                    StartIcon="@Icons.Material.Filled.AddCircle"
+                    OnClick="OpenCrearSolicitudDialog"
+                    Disabled="@(_esSoloEmpleado && !_filtroEmpleadoId.HasValue)"
+                    Style="border-radius: 8px; text-transform: none;">
+                    Nueva Solicitud
+                </MudButton>
+            </AuthorizeView>
+            @if (_filtroEmpleadoId.HasValue)
+            {
+                <AuthorizeView Roles="Administrador,Supervisor,RecursosHumanos" Context="syncVacCtx">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                        StartIcon="@Icons.Material.Filled.Sync"
+                        OnClick="GenerarPeriodosEmpleadoSeleccionado"
+                        Style="border-radius: 8px; text-transform: none;">
+                        Sincronizar
+                    </MudButton>
+                </AuthorizeView>
+            }
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<!-- ── Tarjetas KPI Resumen (si hay empleado seleccionado o global) ── -->
+@if (_resumenEmpleado != null)
+{
+    <MudAlert Severity="Severity.Normal" Variant="Variant.Outlined" Class="mb-3" Icon="@Icons.Material.Filled.Badge">
+        <div class="d-flex flex-wrap align-center gap-2">
+            <span><strong>@_resumenEmpleado.NumeroNomina - @_resumenEmpleado.EmpleadoNombre</strong></span>
+            <span>|</span>
+            <span>Fecha de Ingreso: <strong>@(_resumenEmpleado.FechaIngreso?.ToString("dd/MM/yyyy") ?? "No registrada")</strong></span>
+            <span>|</span>
+            <span>Antigüedad: <strong>@_resumenEmpleado.AntiguedadAnios año(s) cumplidos</strong></span>
+            @if (_resumenEmpleado.AntiguedadAnios >= 1 && _resumenEmpleado.FechaInicioPeriodoGenerador.HasValue)
+            {
+                <span>|</span>
+                <span>Periodo que Generó (Año Anterior): <strong>@_resumenEmpleado.FechaInicioPeriodoGenerador?.ToString("dd/MM/yyyy") al @_resumenEmpleado.FechaFinPeriodoGenerador?.ToString("dd/MM/yyyy")</strong></span>
+                <span>|</span>
+                <span>Periodo de Goce (Año en Curso): <strong style="color: #1976D2;">@_resumenEmpleado.FechaInicioPeriodoGoce?.ToString("dd/MM/yyyy") al @_resumenEmpleado.FechaFinPeriodoGoce?.ToString("dd/MM/yyyy")</strong></span>
+                <span>|</span>
+                <span>Se cancelan el: <strong style="color: #d32f2f;">@_resumenEmpleado.FechaCancelacionPeriodoActual?.ToString("dd/MM/yyyy")</strong></span>
+            }
+            else
+            {
+                <span>|</span>
+                <span style="color: #ed6c02;"><strong>Aún no cumple el 1er año de servicio para generar días de vacaciones</strong></span>
+            }
+        </div>
+    </MudAlert>
+
+    <MudGrid Spacing="3" Class="mb-4">
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="2" Class="pa-4 d-flex align-center gap-4" Style="border-radius: 12px; border-left: 5px solid #1976D2;">
+                <MudIcon Icon="@Icons.Material.Filled.EventAvailable" Size="Size.Large" Color="Color.Primary" />
+                <div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Días Generados (Año Anterior)</MudText>
+                    <MudText Typo="Typo.h5">@_resumenEmpleado.DiasLeyPeriodoActual días</MudText>
+                    <MudText Typo="Typo.caption">
+                        @(_resumenEmpleado.FechaInicioPeriodoGenerador.HasValue
+                            ? $"{_resumenEmpleado.FechaInicioPeriodoGenerador:dd/MM/yyyy} - {_resumenEmpleado.FechaFinPeriodoGenerador:dd/MM/yyyy}"
+                            : $"{_resumenEmpleado.AntiguedadAnios} años cumplidos")
+                    </MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="2" Class="pa-4 d-flex align-center gap-4" Style="border-radius: 12px; border-left: 5px solid #388E3C;">
+                <MudIcon Icon="@Icons.Material.Filled.DoneAll" Size="Size.Large" Color="Color.Success" />
+                <div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Días Disfrutados</MudText>
+                    <MudText Typo="Typo.h5" Color="Color.Success">@_resumenEmpleado.TotalDiasDisfrutados días</MudText>
+                    <MudText Typo="Typo.caption">Gozados históricamente</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="2" Class="pa-4 d-flex align-center gap-4" Style="border-radius: 12px; border-left: 5px solid #00897B;">
+                <MudIcon Icon="@Icons.Material.Filled.Savings" Size="Size.Large" Color="Color.Info" />
+                <div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Saldo por Disfrutar (Año en Curso)</MudText>
+                    <MudText Typo="Typo.h5" Color="Color.Info">@_resumenEmpleado.TotalDiasPendientes días</MudText>
+                    <MudText Typo="Typo.caption">
+                        @(_resumenEmpleado.FechaInicioPeriodoGoce.HasValue
+                            ? $"Goce: {_resumenEmpleado.FechaInicioPeriodoGoce:dd/MM/yyyy} al {_resumenEmpleado.FechaFinPeriodoGoce:dd/MM/yyyy}"
+                            : "Sin periodo activo")
+                    </MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="2" Class="pa-4 d-flex align-center gap-4" Style="border-radius: 12px; border-left: 5px solid #FFA000;">
+                <MudIcon Icon="@Icons.Material.Filled.HourglassTop" Size="Size.Large" Color="Color.Warning" />
+                <div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Solicitudes Pendientes</MudText>
+                    <MudText Typo="Typo.h5" Color="Color.Warning">
+                        @_solicitudes.Count(s => s.Estado == "Pendiente" && (!_filtroEmpleadoId.HasValue || s.EmpleadoId == _filtroEmpleadoId.Value))
+                    </MudText>
+                    <MudText Typo="Typo.caption">Por autorizar</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+<!-- ── Contenedor de Pestañas Principales ── -->
+<MudPaper Elevation="2" Class="pa-4" Style="border-radius: 12px;">
+    @if (_loading)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-4" />
+    }
+
+    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" Class="mt-2">
+        <!-- ── TAB 1: Solicitudes de Vacaciones ── -->
+        <MudTabPanel Text="Solicitudes de Vacaciones" Icon="@Icons.Material.Filled.ListAlt">
+            <MudTextField @bind-Value="_searchString" Placeholder="Buscar por empleado, nómina o estado..."
+                Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" Immediate="true" />
+
+            <MudDataGrid T="SolicitudVacacionesListDto" Items="@_solicitudes" Dense="true"
+                Hover="true" Striped="true" QuickFilter="@_solicitudQuickFilter" RowsPerPage="10">
+                <Columns>
+                    <PropertyColumn Property="x => x.SolicitudVacacionesId" Title="Folio" HeaderStyle="width: 70px;" />
+                    <PropertyColumn Property="x => x.NumeroNomina" Title="Nómina" HeaderStyle="width: 80px;" />
+                    <PropertyColumn Property="x => x.EmpleadoNombre" Title="Empleado" />
+                    <TemplateColumn Title="Periodo Generador / Goce">
+                        <CellTemplate>
+                            <div>
+                                <MudText Typo="Typo.body2">
+                                    <strong>Generó:</strong>
+                                    @(context.Item.FechaInicioPeriodoGenerador.HasValue && context.Item.FechaFinPeriodoGenerador.HasValue
+                                        ? $"{context.Item.FechaInicioPeriodoGenerador:dd/MM/yyyy} - {context.Item.FechaFinPeriodoGenerador:dd/MM/yyyy}"
+                                        : $"Año {context.Item.AnioPeriodo}")
+                                </MudText>
+                                @if (context.Item.FechaInicioPeriodoGoce.HasValue && context.Item.FechaFinPeriodoGoce.HasValue)
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Primary">
+                                        Goce: @context.Item.FechaInicioPeriodoGoce.Value.ToString("dd/MM/yyyy") - @context.Item.FechaFinPeriodoGoce.Value.ToString("dd/MM/yyyy")
+                                    </MudText>
+                                }
+                            </div>
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Fechas Solicitadas">
+                        <CellTemplate>
+                            <div>
+                                <MudText Typo="Typo.body2">
+                                    @context.Item.FechaInicio.ToString("dd/MM/yyyy") - @context.Item.FechaFin.ToString("dd/MM/yyyy")
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    Regreso: @context.Item.FechaRegreso.ToString("dd/MM/yyyy")
+                                </MudText>
+                            </div>
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <PropertyColumn Property="x => x.DiasSolicitados" Title="Días" HeaderStyle="width: 70px;" />
+                    <TemplateColumn Title="Estado" HeaderStyle="width: 110px;">
+                        <CellTemplate>
+                            @switch (context.Item.Estado)
+                            {
+                                case "Pendiente":
+                                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled">Pendiente</MudChip>
+                                    break;
+                                case "Aprobada":
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small" Variant="Variant.Filled">Aprobada</MudChip>
+                                    break;
+                                case "Rechazada":
+                                    <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled">Rechazada</MudChip>
+                                    break;
+                                case "Cancelada":
+                                    <MudChip T="string" Color="Color.Dark" Size="Size.Small" Variant="Variant.Outlined">Cancelada</MudChip>
+                                    break;
+                                default:
+                                    <MudChip T="string" Color="Color.Default" Size="Size.Small">@context.Item.Estado</MudChip>
+                                    break;
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Acciones" HeaderStyle="width: 165px; text-align: center;">
+                        <CellTemplate>
+                            <div class="d-flex justify-center gap-1">
+                                <MudTooltip Text="Ver Detalle">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" Color="Color.Info"
+                                        OnClick="@(() => VerDetalleSolicitud(context.Item.SolicitudVacacionesId))" />
+                                </MudTooltip>
+
+                                <MudTooltip Text="Imprimir Formato de Solicitud">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Print" Size="Size.Small" Color="Color.Primary"
+                                        OnClick="@(() => AbrirFormatoImprimible(context.Item.SolicitudVacacionesId))" />
+                                </MudTooltip>
+
+                                <AuthorizeView Roles="Administrador,Supervisor,RecursosHumanos" Context="aprobadorVacCtx">
+                                    @if (context.Item.Estado == "Pendiente")
+                                    {
+                                        <MudTooltip Text="Aprobar Solicitud">
+                                            <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Color="Color.Success"
+                                                OnClick="@(() => OpenResolverDialog(context.Item, true))" />
+                                        </MudTooltip>
+                                        <MudTooltip Text="Rechazar Solicitud">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" Color="Color.Error"
+                                                OnClick="@(() => OpenResolverDialog(context.Item, false))" />
+                                        </MudTooltip>
+                                    }
+                                    else if (context.Item.Estado == "Aprobada")
+                                    {
+                                        <MudTooltip Text="Cancelar Solicitud">
+                                            <MudIconButton Icon="@Icons.Material.Filled.Undo" Size="Size.Small" Color="Color.Dark"
+                                                OnClick="@(() => CancelarSolicitud(context.Item.SolicitudVacacionesId))" />
+                                        </MudTooltip>
+                                    }
+                                </AuthorizeView>
+                            </div>
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+                <PagerContent>
+                    <MudDataGridPager T="SolicitudVacacionesListDto" />
+                </PagerContent>
+            </MudDataGrid>
+        </MudTabPanel>
+
+        <!-- ── TAB 2: Periodos y Saldos por Año ── -->
+        <MudTabPanel Text="Periodos y Saldos Anuales" Icon="@Icons.Material.Filled.DateRange">
+            @if (!_filtroEmpleadoId.HasValue)
+            {
+                <MudAlert Severity="Severity.Info" Class="my-2">
+                    @(_esSoloEmpleado
+                        ? "Tu cuenta de usuario aún no tiene un expediente de empleado vinculado para mostrar tus periodos vacacionales."
+                        : "Selecciona un empleado en el filtro superior para visualizar el desglose detallado de sus periodos anuales devengados y fechas de goce.")
+                </MudAlert>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mb-3" Icon="@Icons.Material.Filled.Info">
+                    <strong>Regla de Periodos y Cancelación Anual (por Fecha de Ingreso):</strong> El periodo que genera los días de vacaciones es el año de servicio anterior cumplido, y el periodo para disfrutarlos es el año en curso. Si al concluir la fecha final del periodo de goce el empleado aún tiene días pendientes, se cancelan automáticamente al día siguiente cuando inicia el nuevo periodo.
+                </MudAlert>
+
+                <MudTable Items="@_periodosEmpleado" Dense="true" Hover="true" Striped="true" Elevation="0">
+                    <HeaderContent>
+                        <MudTh>Antigüedad</MudTh>
+                        <MudTh>Periodo que Generó (Año Anterior)</MudTh>
+                        <MudTh>Periodo de Goce y Disfrute (Año en Curso)</MudTh>
+                        <MudTh Style="text-align: right;">Días Derecho</MudTh>
+                        <MudTh Style="text-align: right;">Días Disfrutados</MudTh>
+                        <MudTh Style="text-align: right;">Días Pendientes (Saldo)</MudTh>
+                        <MudTh>Fecha de Cancelación</MudTh>
+                        <MudTh>Estado</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Antigüedad"><strong>@context.AntiguedadAnios año(s)</strong></MudTd>
+                        <MudTd DataLabel="Periodo Generador">
+                            <MudText Typo="Typo.body2">@context.PeriodoGeneradorTexto</MudText>
+                        </MudTd>
+                        <MudTd DataLabel="Periodo de Goce">
+                            <MudText Typo="Typo.body2" Color="@(context.Estado == "Activo" ? Color.Primary : Color.Default)" Style="@(context.Estado == "Activo" ? "font-weight: 600;" : "")">
+                                @context.PeriodoGoceTexto
+                            </MudText>
+                        </MudTd>
+                        <MudTd DataLabel="Derecho" Style="text-align: right;"><strong>@context.DiasCorrespondientes</strong></MudTd>
+                        <MudTd DataLabel="Disfrutados" Style="text-align: right; color: #388E3C;">@context.DiasDisfrutados</MudTd>
+                        <MudTd DataLabel="Pendientes" Style="text-align: right;">
+                            @if (context.Estado == "Vencido")
+                            {
+                                <span style="color: #9E9E9E; font-weight: 500;">0</span>
+                                @if (context.DiasCancelados > 0)
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Error" Style="display: block; font-size: 0.72rem;">
+                                        (@context.DiasCancelados cancelados)
+                                    </MudText>
+                                }
+                            }
+                            else
+                            {
+                                <span style="color: #1976D2; font-weight: bold; font-size: 1.05rem;">@context.DiasPendientes</span>
+                                <MudText Typo="Typo.caption" Color="Color.Success" Style="display: block; font-size: 0.72rem;">
+                                    (Vigente hasta @context.FechaFinGoce.ToString("dd/MM/yyyy"))
+                                </MudText>
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="Cancelación">
+                            <MudText Typo="Typo.body2" Color="@(context.Estado == "Activo" ? Color.Error : Color.Secondary)">
+                                @context.FechaCancelacion.ToString("dd/MM/yyyy")
+                            </MudText>
+                        </MudTd>
+                        <MudTd DataLabel="Estado">
+                            <MudChip T="string" Size="Size.Small"
+                                Color="@(context.Estado == "Activo" ? Color.Success : (context.Estado == "Vencido" ? Color.Warning : Color.Default))"
+                                Variant="@(context.Estado == "Activo" ? Variant.Filled : Variant.Outlined)">
+                                @context.Estado
+                            </MudChip>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </MudTabPanel>
+    </MudTabs>
+</MudPaper>
+
+<!-- ── DIÁLOGO: Nueva Solicitud de Vacaciones ── -->
+<MudDialog @bind-Visible="_showCrearDialog" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.BeachAccess" Class="mr-2" Style="vertical-align: middle;" />
+            Nueva Solicitud de Vacaciones
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_crearForm" @bind-IsValid="_crearFormValido">
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudSelect T="int" Label="Empleado *" @bind-Value="_nuevaSolicitud.EmpleadoId"
+                        Required="true" RequiredError="Debes seleccionar un empleado"
+                        Disabled="@_esSoloEmpleado"
+                        SelectedValuesChanged="OnEmpleadoSolicitudSeleccionado"
+                        Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var emp in _empleados)
+                        {
+                            <MudSelectItem T="int" Value="@emp.EmpleadoId">@emp.NumeroNomina - @emp.NombreCompleto</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+
+                @if (_resumenEmpleadoSolicitud != null)
+                {
+                    <MudItem xs="12">
+                        @if (_periodoActivoSolicitud != null)
+                        {
+                            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Icon="@Icons.Material.Filled.DateRange">
+                                <div>
+                                    <strong>Periodo que generó (Año anterior):</strong> @_periodoActivoSolicitud.PeriodoGeneradorTexto
+                                    &nbsp;|&nbsp;
+                                    <strong>Antigüedad:</strong> @_periodoActivoSolicitud.AntiguedadAnios año(s)
+                                </div>
+                                <div>
+                                    <strong>Periodo para disfrutar (Año en curso):</strong> @_periodoActivoSolicitud.PeriodoGoceTexto
+                                    &nbsp;|&nbsp;
+                                    <strong>Saldo disponible:</strong> <span style="color: #1976D2; font-weight: bold;">@_periodoActivoSolicitud.DiasPendientes de @_periodoActivoSolicitud.DiasCorrespondientes días</span>
+                                </div>
+                                <div style="font-size: 0.78rem; color: #d32f2f; margin-top: 2px;">
+                                    * Los días no disfrutados al @_periodoActivoSolicitud.FechaFinGoce.ToString("dd/MM/yyyy") se cancelarán automáticamente el día @_periodoActivoSolicitud.FechaCancelacion.ToString("dd/MM/yyyy").
+                                </div>
+                            </MudAlert>
+                        }
+                        else
+                        {
+                            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true">
+                                El empleado ingresó el @(_resumenEmpleadoSolicitud.FechaIngreso?.ToString("dd/MM/yyyy") ?? "N/A") y no cuenta con un periodo activo con días pendientes por disfrutar.
+                            </MudAlert>
+                        }
+                    </MudItem>
+                }
+
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Label="Fecha Inicio *" @bind-Date="FechaInicioProp"
+                        DateFormat="dd/MM/yyyy" Required="true" RequiredError="Fecha requerida"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Label="Fecha Fin *" @bind-Date="FechaFinProp"
+                        DateFormat="dd/MM/yyyy" Required="true" RequiredError="Fecha requerida"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Label="Fecha de Regreso al Trabajo *" @bind-Date="_fechaRegreso"
+                        DateFormat="dd/MM/yyyy" Required="true" RequiredError="Fecha requerida"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudNumericField Label="Días Solicitados *" @bind-Value="_nuevaSolicitud.DiasSolicitados"
+                        Min="1" Max="365" Required="true" RequiredError="Días requeridos"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudTextField Label="Motivo u Observaciones" @bind-Value="_nuevaSolicitud.Observaciones"
+                        Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showCrearDialog = false)">Cancelar</MudButton>
+        <MudButton Color="Color.Secondary" Variant="Variant.Outlined"
+            StartIcon="@Icons.Material.Filled.Print"
+            OnClick="VistaPreviaFormatoDesdeCrear"
+            Disabled="@(_nuevaSolicitud.EmpleadoId <= 0 || _periodoActivoSolicitud == null)">
+            Imprimir Formato
+        </MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="GuardarSolicitud"
+            Disabled="@(!_crearFormValido || _guardando || _periodoActivoSolicitud == null)">
+            @(_guardando ? "Registrando..." : "Registrar Solicitud")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<!-- ── DIÁLOGO: Resolver Solicitud (Aprobar / Rechazar) ── -->
+<MudDialog @bind-Visible="_showResolverDialog" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6" Color="@(_resolverDto.Aprobada ? Color.Success : Color.Error)">
+            <MudIcon Icon="@(_resolverDto.Aprobada ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Cancel)" Class="mr-2" Style="vertical-align: middle;" />
+            @(_resolverDto.Aprobada ? "Aprobar Solicitud de Vacaciones" : "Rechazar Solicitud de Vacaciones")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_solicitudAfectada != null)
+        {
+            <MudAlert Severity="@(_resolverDto.Aprobada ? Severity.Success : Severity.Warning)" Class="mb-3">
+                ¿Confirmas que deseas @(_resolverDto.Aprobada ? "aprobar" : "rechazar") la solicitud de
+                <strong>@_solicitudAfectada.DiasSolicitados día(s)</strong> para el empleado <strong>@_solicitudAfectada.EmpleadoNombre</strong>?
+            </MudAlert>
+
+            <MudTextField Label="Observaciones o Comentarios de Resolución" @bind-Value="_resolverDto.Observaciones"
+                Lines="3" Variant="Variant.Outlined" Margin="Margin.Dense"
+                Placeholder="Ingresa justificación, motivo de rechazo o nota de autorización..." />
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showResolverDialog = false)">Cancelar</MudButton>
+        <MudButton Color="@(_resolverDto.Aprobada ? Color.Success : Color.Error)" Variant="Variant.Filled"
+            OnClick="ConfirmarResolucion" Disabled="_guardando">
+            @(_guardando ? "Procesando..." : (_resolverDto.Aprobada ? "Confirmar Aprobación" : "Confirmar Rechazo"))
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<!-- ── DIÁLOGO: Detalle de Solicitud ── -->
+<MudDialog @bind-Visible="_showDetalleDialog" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Info" Class="mr-2" Style="vertical-align: middle;" />
+            Detalle de Solicitud #@(_solicitudDetalle?.SolicitudVacacionesId)
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_solicitudDetalle != null)
+        {
+            <MudGrid Spacing="2">
+                <MudItem xs="6">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Empleado</MudText>
+                    <MudText Typo="Typo.body1"><strong>@_solicitudDetalle.EmpleadoNombre</strong></MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Nómina / Empresa</MudText>
+                    <MudText Typo="Typo.body2">@_solicitudDetalle.NumeroNomina — @_solicitudDetalle.EmpresaNombre</MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Fecha de Ingreso / Antigüedad</MudText>
+                    <MudText Typo="Typo.body2">
+                        @(_solicitudDetalle.FechaIngresoEmpleado?.ToString("dd/MM/yyyy") ?? "N/A") (@_solicitudDetalle.AntiguedadAnios año(s))
+                    </MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Departamento / Puesto</MudText>
+                    <MudText Typo="Typo.body2">@_solicitudDetalle.DepartamentoNombre — @_solicitudDetalle.PuestoNombre</MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Periodo que Generó (Año Anterior)</MudText>
+                    <MudText Typo="Typo.body2">
+                        <strong>
+                            @(_solicitudDetalle.FechaInicioPeriodoGenerador.HasValue && _solicitudDetalle.FechaFinPeriodoGenerador.HasValue
+                                ? $"{_solicitudDetalle.FechaInicioPeriodoGenerador:dd/MM/yyyy} al {_solicitudDetalle.FechaFinPeriodoGenerador:dd/MM/yyyy}"
+                                : $"Ciclo {_solicitudDetalle.AnioPeriodo}")
+                        </strong>
+                    </MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Periodo de Goce (Año en Curso)</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Primary">
+                        <strong>
+                            @(_solicitudDetalle.FechaInicioPeriodoGoce.HasValue && _solicitudDetalle.FechaFinPeriodoGoce.HasValue
+                                ? $"{_solicitudDetalle.FechaInicioPeriodoGoce:dd/MM/yyyy} al {_solicitudDetalle.FechaFinPeriodoGoce:dd/MM/yyyy}"
+                                : "Año en curso")
+                        </strong>
+                    </MudText>
+                </MudItem>
+                <MudItem xs="4">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Fecha Inicio</MudText>
+                    <MudText Typo="Typo.body2">@_solicitudDetalle.FechaInicio.ToString("dd/MM/yyyy")</MudText>
+                </MudItem>
+                <MudItem xs="4">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Fecha Fin</MudText>
+                    <MudText Typo="Typo.body2">@_solicitudDetalle.FechaFin.ToString("dd/MM/yyyy")</MudText>
+                </MudItem>
+                <MudItem xs="4">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Fecha Regreso</MudText>
+                    <MudText Typo="Typo.body2">@_solicitudDetalle.FechaRegreso.ToString("dd/MM/yyyy")</MudText>
+                </MudItem>
+                <MudItem xs="4">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Días Solicitados</MudText>
+                    <MudText Typo="Typo.h6" Color="Color.Primary">@_solicitudDetalle.DiasSolicitados</MudText>
+                </MudItem>
+                <MudItem xs="4">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Días del Periodo</MudText>
+                    <MudText Typo="Typo.h6">@_solicitudDetalle.DiasCorrespondientesPeriodo</MudText>
+                </MudItem>
+                <MudItem xs="4">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Estado</MudText>
+                    <MudText Typo="Typo.h6">@_solicitudDetalle.Estado</MudText>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Observaciones del Solicitante</MudText>
+                    <MudText Typo="Typo.body2">@(string.IsNullOrWhiteSpace(_solicitudDetalle.Observaciones) ? "Sin observaciones" : _solicitudDetalle.Observaciones)</MudText>
+                </MudItem>
+                @if (!string.IsNullOrWhiteSpace(_solicitudDetalle.UsuarioAprobador))
+                {
+                    <MudItem xs="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Aprobado / Resuelto por</MudText>
+                        <MudText Typo="Typo.body2">@_solicitudDetalle.UsuarioAprobador</MudText>
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Fecha Resolución</MudText>
+                        <MudText Typo="Typo.body2">@(_solicitudDetalle.FechaAprobacion?.ToString("dd/MM/yyyy HH:mm") ?? "—")</MudText>
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Notas de Aprobación/Rechazo</MudText>
+                        <MudText Typo="Typo.body2">@_solicitudDetalle.ObservacionesAprobacion</MudText>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showDetalleDialog = false)">Cerrar</MudButton>
+        @if (_solicitudDetalle != null)
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                StartIcon="@Icons.Material.Filled.Print"
+                OnClick="@(() => AbrirFormatoImprimible(_solicitudDetalle.SolicitudVacacionesId))">
+                Imprimir Formato
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private bool _loading = true;
+    private bool _guardando = false;
+    private bool _esSoloEmpleado = false;
+    private string _searchString = string.Empty;
+
+    private int? _filtroEmpresaId;
+    private int? _filtroEmpleadoId;
+    private string? _filtroEstado;
+
+    private List<EmpresaListDto> _empresas = new();
+    private List<EmpleadoListDto> _empleados = new();
+    private List<EmpleadoListDto> _empleadosFiltrados = new();
+    private List<SolicitudVacacionesListDto> _solicitudes = new();
+    private List<PeriodoVacacionalDto> _periodosEmpleado = new();
+    private ResumenVacacionesEmpleadoDto? _resumenEmpleado;
+
+    // Diálogo Crear
+    private bool _showCrearDialog = false;
+    private MudForm _crearForm = null!;
+    private bool _crearFormValido = false;
+    private CrearSolicitudVacacionesDto _nuevaSolicitud = new();
+    private ResumenVacacionesEmpleadoDto? _resumenEmpleadoSolicitud;
+    private PeriodoVacacionalDto? _periodoActivoSolicitud;
+    private DateTime? _fechaInicio;
+    private DateTime? _fechaFin;
+    private DateTime? _fechaRegreso;
+
+    private DateTime? FechaInicioProp
+    {
+        get => _fechaInicio;
+        set
+        {
+            _fechaInicio = value;
+            CalcularDiasSolicitados();
+        }
+    }
+
+    private DateTime? FechaFinProp
+    {
+        get => _fechaFin;
+        set
+        {
+            _fechaFin = value;
+            CalcularDiasSolicitados();
+        }
+    }
+
+    // Diálogo Resolver
+    private bool _showResolverDialog = false;
+    private SolicitudVacacionesListDto? _solicitudAfectada;
+    private AprobarRechazarSolicitudDto _resolverDto = new();
+
+    // Diálogo Detalle
+    private bool _showDetalleDialog = false;
+    private SolicitudVacacionesDetailDto? _solicitudDetalle;
+
+    private DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+    private DialogOptions _printDialogOptions = new() { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        _esSoloEmpleado = user.IsInRole("Empleado") &&
+                          !user.IsInRole("Administrador") &&
+                          !user.IsInRole("Supervisor") &&
+                          !user.IsInRole("RecursosHumanos") &&
+                          !user.IsInRole("Consultor");
+
+        if (int.TryParse(user.FindFirst("empleadoId")?.Value, out var empId) && empId > 0)
+        {
+            if (_esSoloEmpleado)
+            {
+                _filtroEmpleadoId = empId;
+            }
+        }
+
+        await CargarDatosIniciales();
+    }
+
+    private async Task CargarDatosIniciales()
+    {
+        _loading = true;
+        try
+        {
+            if (!_esSoloEmpleado)
+            {
+                _empresas = await EmpresasService.GetEmpresasAsync();
+                _empleados = await EmpleadosService.GetEmpleadosAsync();
+                _empleadosFiltrados = _empleados.ToList();
+            }
+            else if (_filtroEmpleadoId.HasValue)
+            {
+                _empleados = await EmpleadosService.GetEmpleadosAsync();
+                _empleadosFiltrados = _empleados.Where(e => e.EmpleadoId == _filtroEmpleadoId.Value).ToList();
+            }
+
+            if (_filtroEmpleadoId.HasValue)
+            {
+                _resumenEmpleado = await VacacionesService.GetResumenPorEmpleadoAsync(_filtroEmpleadoId.Value);
+                _periodosEmpleado = await VacacionesService.GetPeriodosPorEmpleadoAsync(_filtroEmpleadoId.Value);
+            }
+
+            await CargarSolicitudes();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar datos iniciales: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task CargarSolicitudes()
+    {
+        _loading = true;
+        try
+        {
+            _solicitudes = await VacacionesService.GetSolicitudesAsync(_filtroEmpleadoId, _filtroEmpresaId, _filtroEstado);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar solicitudes: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnEmpresaChanged()
+    {
+        if (_filtroEmpresaId.HasValue)
+            _empleadosFiltrados = _empleados.Where(e => e.EmpresaNombre == _empresas.FirstOrDefault(x => x.NumEmpresa == _filtroEmpresaId.Value)?.RazonSocial).ToList();
+        else
+            _empleadosFiltrados = _empleados.ToList();
+
+        _filtroEmpleadoId = null;
+        _resumenEmpleado = null;
+        _periodosEmpleado.Clear();
+        await CargarSolicitudes();
+    }
+
+    private async Task OnEmpleadoChanged()
+    {
+        if (_filtroEmpleadoId.HasValue)
+        {
+            _loading = true;
+            try
+            {
+                _resumenEmpleado = await VacacionesService.GetResumenPorEmpleadoAsync(_filtroEmpleadoId.Value);
+                _periodosEmpleado = await VacacionesService.GetPeriodosPorEmpleadoAsync(_filtroEmpleadoId.Value);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error al cargar datos del empleado: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                _loading = false;
+            }
+        }
+        else
+        {
+            _resumenEmpleado = null;
+            _periodosEmpleado.Clear();
+        }
+
+        await CargarSolicitudes();
+    }
+
+    private async Task GenerarPeriodosEmpleadoSeleccionado()
+    {
+        if (!_filtroEmpleadoId.HasValue) return;
+
+        _loading = true;
+        try
+        {
+            var response = await VacacionesService.GenerarPeriodosEmpleadoAsync(_filtroEmpleadoId.Value);
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Periodos vacacionales sincronizados correctamente.", Severity.Success);
+                await OnEmpleadoChanged();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"No se pudieron generar los periodos: {error}", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OpenCrearSolicitudDialog()
+    {
+        _nuevaSolicitud = new CrearSolicitudVacacionesDto();
+        _resumenEmpleadoSolicitud = null;
+        _periodoActivoSolicitud = null;
+        _fechaInicio = DateTime.Today.AddDays(1);
+        _fechaFin = DateTime.Today.AddDays(5);
+        _fechaRegreso = DateTime.Today.AddDays(6);
+        _nuevaSolicitud.DiasSolicitados = 5;
+
+        if (_filtroEmpleadoId.HasValue)
+        {
+            _nuevaSolicitud.EmpleadoId = _filtroEmpleadoId.Value;
+            await OnEmpleadoSolicitudSeleccionado();
+        }
+
+        _showCrearDialog = true;
+    }
+
+    private async Task OnEmpleadoSolicitudSeleccionado()
+    {
+        if (_nuevaSolicitud.EmpleadoId > 0)
+        {
+            _resumenEmpleadoSolicitud = await VacacionesService.GetResumenPorEmpleadoAsync(_nuevaSolicitud.EmpleadoId);
+            _periodoActivoSolicitud = _resumenEmpleadoSolicitud?.Periodos
+                .Where(p => p.Estado == "Activo" && p.DiasPendientes > 0)
+                .OrderByDescending(p => p.Anio)
+                .FirstOrDefault();
+
+            _nuevaSolicitud.PeriodoVacacionalId = _periodoActivoSolicitud?.PeriodoVacacionalId;
+        }
+    }
+
+    private void CalcularDiasSolicitados()
+    {
+        if (_fechaInicio.HasValue && _fechaFin.HasValue && _fechaFin.Value >= _fechaInicio.Value)
+        {
+            _nuevaSolicitud.DiasSolicitados = (_fechaFin.Value.Date - _fechaInicio.Value.Date).Days + 1;
+            if (!_fechaRegreso.HasValue || _fechaRegreso.Value <= _fechaFin.Value)
+            {
+                _fechaRegreso = _fechaFin.Value.AddDays(1);
+            }
+        }
+    }
+
+    private async Task GuardarSolicitud()
+    {
+        if (!_fechaInicio.HasValue || !_fechaFin.HasValue || !_fechaRegreso.HasValue)
+        {
+            Snackbar.Add("Por favor selecciona las fechas de la solicitud.", Severity.Warning);
+            return;
+        }
+
+        _guardando = true;
+        try
+        {
+            _nuevaSolicitud.FechaInicio = _fechaInicio.Value;
+            _nuevaSolicitud.FechaFin = _fechaFin.Value;
+            _nuevaSolicitud.FechaRegreso = _fechaRegreso.Value;
+            _nuevaSolicitud.PeriodoVacacionalId = _periodoActivoSolicitud?.PeriodoVacacionalId;
+
+            var response = await VacacionesService.CreateSolicitudAsync(_nuevaSolicitud);
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Solicitud de vacaciones registrada con éxito.", Severity.Success);
+                _showCrearDialog = false;
+                await CargarSolicitudes();
+                if (_filtroEmpleadoId.HasValue) await OnEmpleadoChanged();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Error al registrar solicitud: {error}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task AbrirFormatoImprimible(int solicitudId)
+    {
+        var parameters = new DialogParameters<SolicitudVacacionesImprimibleDialog>
+        {
+            { x => x.SolicitudVacacionesId, solicitudId }
+        };
+
+        await DialogService.ShowAsync<SolicitudVacacionesImprimibleDialog>("Formato de Solicitud de Vacaciones", parameters, _printDialogOptions);
+    }
+
+    private async Task VistaPreviaFormatoDesdeCrear()
+    {
+        if (_resumenEmpleadoSolicitud == null || _periodoActivoSolicitud == null || !_fechaInicio.HasValue || !_fechaFin.HasValue)
+        {
+            Snackbar.Add("Completa los datos del empleado y las fechas para generar el formato imprimible.", Severity.Warning);
+            return;
+        }
+
+        var previa = new SolicitudVacacionesDetailDto
+        {
+            SolicitudVacacionesId = 0,
+            EmpleadoId = _resumenEmpleadoSolicitud.EmpleadoId,
+            EmpleadoNombre = _resumenEmpleadoSolicitud.EmpleadoNombre,
+            NumeroNomina = _resumenEmpleadoSolicitud.NumeroNomina,
+            EmpresaNombre = _resumenEmpleadoSolicitud.EmpresaNombre,
+            DepartamentoNombre = _resumenEmpleadoSolicitud.DepartamentoNombre,
+            PuestoNombre = _resumenEmpleadoSolicitud.PuestoNombre,
+            FechaIngresoEmpleado = _resumenEmpleadoSolicitud.FechaIngreso,
+            AntiguedadAnios = _periodoActivoSolicitud.AntiguedadAnios,
+            PeriodoVacacionalId = _periodoActivoSolicitud.PeriodoVacacionalId,
+            AnioPeriodo = _periodoActivoSolicitud.Anio,
+            FechaInicioPeriodoGenerador = _periodoActivoSolicitud.FechaInicioPeriodo,
+            FechaFinPeriodoGenerador = _periodoActivoSolicitud.FechaFinPeriodo,
+            FechaFinPeriodoGoce = _periodoActivoSolicitud.FechaFinGoce,
+            DiasCorrespondientesPeriodo = _periodoActivoSolicitud.DiasCorrespondientes,
+            DiasDisfrutadosPeriodo = _periodoActivoSolicitud.DiasDisfrutados,
+            DiasPendientesPeriodo = _periodoActivoSolicitud.DiasPendientes,
+            FechaSolicitud = DateTime.Today,
+            FechaInicio = _fechaInicio.Value,
+            FechaFin = _fechaFin.Value,
+            FechaRegreso = _fechaRegreso ?? _fechaFin.Value.AddDays(1),
+            DiasSolicitados = _nuevaSolicitud.DiasSolicitados ?? 1,
+            Estado = "Pendiente",
+            Observaciones = _nuevaSolicitud.Observaciones
+        };
+
+        var parameters = new DialogParameters<SolicitudVacacionesImprimibleDialog>
+        {
+            { x => x.SolicitudPrevia, previa }
+        };
+
+        await DialogService.ShowAsync<SolicitudVacacionesImprimibleDialog>("Vista Previa - Formato de Solicitud de Vacaciones", parameters, _printDialogOptions);
+    }
+
+    private void OpenResolverDialog(SolicitudVacacionesListDto item, bool aprobar)
+    {
+        _solicitudAfectada = item;
+        _resolverDto = new AprobarRechazarSolicitudDto
+        {
+            Aprobada = aprobar,
+            Observaciones = string.Empty
+        };
+        _showResolverDialog = true;
+    }
+
+    private async Task ConfirmarResolucion()
+    {
+        if (_solicitudAfectada == null) return;
+
+        _guardando = true;
+        try
+        {
+            var response = await VacacionesService.ResolverSolicitudAsync(_solicitudAfectada.SolicitudVacacionesId, _resolverDto);
+            if (response.IsSuccessStatusCode)
+            {
+                var accion = _resolverDto.Aprobada ? "aprobada" : "rechazada";
+                Snackbar.Add($"Solicitud #{_solicitudAfectada.SolicitudVacacionesId} {accion} exitosamente.", Severity.Success);
+                _showResolverDialog = false;
+                await CargarSolicitudes();
+                if (_filtroEmpleadoId.HasValue) await OnEmpleadoChanged();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Error: {error}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task CancelarSolicitud(int solicitudId)
+    {
+        bool? confirmar = await DialogService.ShowMessageBoxAsync(
+            "Cancelar Solicitud",
+            "¿Estás seguro de que deseas cancelar esta solicitud? Los días previamente aprobados serán devueltos al saldo del periodo del empleado.",
+            yesText: "Sí, Cancelar", cancelText: "Volver");
+
+        if (confirmar != true) return;
+
+        _loading = true;
+        try
+        {
+            var response = await VacacionesService.CancelarSolicitudAsync(solicitudId);
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Solicitud cancelada y días restituidos.", Severity.Info);
+                await CargarSolicitudes();
+                if (_filtroEmpleadoId.HasValue) await OnEmpleadoChanged();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Error al cancelar: {error}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task VerDetalleSolicitud(int solicitudId)
+    {
+        _loading = true;
+        try
+        {
+            _solicitudDetalle = await VacacionesService.GetSolicitudByIdAsync(solicitudId);
+            _showDetalleDialog = true;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar detalle: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Func<SolicitudVacacionesListDto, bool> _solicitudQuickFilter => x =>
+    {
+        if (string.IsNullOrWhiteSpace(_searchString))
+            return true;
+
+        if (x.EmpleadoNombre.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (x.NumeroNomina.ToString().Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (x.Estado.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
+    };
+}

@@ -1,6 +1,6 @@
 @page "/gestion-empresas"
 @using MudBlazor
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador")]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador,Supervisor")]
 @inject EmpresasApiService EmpresasService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService

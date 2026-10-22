@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using PrestamosUcayNet.Application.DTOs;
 using PrestamosUcayNet.Application.Interfaces;
+using PrestamosUcayNet.Infrastructure.Data;
 using PrestamosUcayNet.Infrastructure.Identity;
 
 namespace PrestamosUcayNet.Infrastructure.Services;
@@ -19,15 +20,18 @@ public class UsuariosService : IUsuariosService
     private readonly UserManager<UsuarioSistema> _userManager;
     private readonly RoleManager<IdentityRole> _roleManager;
     private readonly IConfiguration _configuration;
+    private readonly UcayNetDbContext _context;
 
     public UsuariosService(
         UserManager<UsuarioSistema> userManager,
         RoleManager<IdentityRole> roleManager,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        UcayNetDbContext context)
     {
         _userManager = userManager;
         _roleManager = roleManager;
         _configuration = configuration;
+        _context = context;
     }
 
     /// <inheritdoc />
@@ -40,6 +44,21 @@ public class UsuariosService : IUsuariosService
         var passwordValid = await _userManager.CheckPasswordAsync(user, dto.Password);
         if (!passwordValid)
             throw new UnauthorizedAccessException("Credenciales inválidas o usuario desactivado.");
+
+        // Si el usuario no tiene EmpleadoId vinculado, intentar vincular por correo electrónico
+        if (!user.EmpleadoId.HasValue && !string.IsNullOrWhiteSpace(user.Email))
+        {
+            var empleadoId = await _context.Empleados
+                .AsNoTracking()
+                .Where(e => e.Email == user.Email)
+                .Select(e => (int?)e.EmpleadoId)
+                .FirstOrDefaultAsync();
+
+            if (empleadoId.HasValue)
+            {
+                user.EmpleadoId = empleadoId;
+            }
+        }
 
         // Actualizar último acceso
         user.UltimoAcceso = DateTime.UtcNow;
@@ -55,7 +74,8 @@ public class UsuariosService : IUsuariosService
                 int.Parse(_configuration["JwtSettings:ExpirationMinutes"] ?? "480")),
             NombreCompleto = user.NombreCompleto,
             Email = user.Email!,
-            Roles = roles.ToList()
+            Roles = roles.ToList(),
+            EmpleadoId = user.EmpleadoId
         };
     }
 
@@ -66,6 +86,16 @@ public class UsuariosService : IUsuariosService
         if (existingUser != null)
             throw new InvalidOperationException("Ya existe un usuario con este correo electrónico.");
 
+        var empleadoId = dto.EmpleadoId;
+        if (!empleadoId.HasValue && !string.IsNullOrWhiteSpace(dto.Email))
+        {
+            empleadoId = await _context.Empleados
+                .AsNoTracking()
+                .Where(e => e.Email == dto.Email)
+                .Select(e => (int?)e.EmpleadoId)
+                .FirstOrDefaultAsync();
+        }
+
         var user = new UsuarioSistema
         {
             UserName = dto.Email,
@@ -74,7 +104,7 @@ public class UsuariosService : IUsuariosService
             Activo = true,
             FechaCreacion = DateTime.UtcNow,
             EmailConfirmed = true,
-            EmpleadoId = dto.EmpleadoId
+            EmpleadoId = empleadoId
         };
 
         var result = await _userManager.CreateAsync(user, dto.Password);

@@ -1,0 +1,286 @@
+@page "/mis-prestamos"
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using PrestamosUcayNet.Application.DTOs
+@using PrestamosUcayNet.UI.Components.Dialogs
+@using PrestamosUcayNet.UI.Services
+@using MudBlazor
+@attribute [Authorize]
+@inject PrestamosApiService PrestamosApi
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Mis Préstamos — Préstamos UcayNet</PageTitle>
+
+<div class="d-flex align-center justify-space-between mb-4 flex-wrap gap-2">
+    <div>
+        <MudText Typo="Typo.h4" Class="mb-1">
+            <MudIcon Icon="@Icons.Material.Filled.AccountBalanceWallet" Class="mr-2" Style="vertical-align: middle;" />
+            Mis Préstamos
+        </MudText>
+        <MudText Typo="Typo.subtitle1" Color="Color.Secondary">
+            Consulta tus préstamos vigentes, tabla de amortización e historial de créditos
+        </MudText>
+    </div>
+    @if (_empleadoId.HasValue)
+    {
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Refresh"
+                   OnClick="CargarMisPrestamos" Disabled="@_loading">
+            Actualizar
+        </MudButton>
+    }
+</div>
+
+@if (_loading)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-6" />
+}
+else if (!_empleadoId.HasValue)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="my-4">
+        Tu cuenta de usuario (<b>@_userEmail</b>) aún no está vinculada a un expediente de empleado. Solicita al Administrador del sistema vincular tu usuario con tu registro de colaborador en el módulo de Usuarios.
+    </MudAlert>
+}
+else
+{
+    @* ── Resumen KPI del Colaborador ── *@
+    <MudGrid Spacing="3" Class="mb-4">
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="2" Class="pa-4 d-flex align-center gap-4" Style="border-radius: 12px; border-left: 5px solid #10B981;">
+                <MudIcon Icon="@Icons.Material.Filled.CreditScore" Size="Size.Large" Color="Color.Success" />
+                <div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Préstamos Vigentes / En Trámite</MudText>
+                    <MudText Typo="Typo.h5">@_prestamosVigentes.Count</MudText>
+                    <MudText Typo="Typo.caption">@_prestamosVigentes.Count(p => p.Estado == "A") activo(s)</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="2" Class="pa-4 d-flex align-center gap-4" Style="border-radius: 12px; border-left: 5px solid #EF4444;">
+                <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Size="Size.Large" Color="Color.Error" />
+                <div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Saldo Pendiente Total</MudText>
+                    <MudText Typo="Typo.h5" Color="Color.Error">@_prestamosVigentes.Where(p => p.Estado == "A").Sum(p => p.SaldoPendiente).ToString("C2")</MudText>
+                    <MudText Typo="Typo.caption">En préstamos activos</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="2" Class="pa-4 d-flex align-center gap-4" Style="border-radius: 12px; border-left: 5px solid #3B82F6;">
+                <MudIcon Icon="@Icons.Material.Filled.Payments" Size="Size.Large" Color="Color.Info" />
+                <div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Descuento por Cuota</MudText>
+                    <MudText Typo="Typo.h5" Color="Color.Info">@_prestamosVigentes.Where(p => p.Estado == "A").Sum(p => p.ImporteCuotas).ToString("C2")</MudText>
+                    <MudText Typo="Typo.caption">Suma de cuotas activas</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="2" Class="pa-4 d-flex align-center gap-4" Style="border-radius: 12px; border-left: 5px solid #6366F1;">
+                <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Large" Color="Color.Primary" />
+                <div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Historial de Préstamos</MudText>
+                    <MudText Typo="Typo.h5">@_prestamosHistorial.Count</MudText>
+                    <MudText Typo="Typo.caption">@_prestamosHistorial.Count(p => p.Estado is "L" or "P") liquidado(s)</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true">
+        @* ── TAB 1: Préstamos Vigentes y Solicitudes en Curso ── *@
+        <MudTabPanel Text="Préstamos Vigentes" Icon="@Icons.Material.Filled.CheckCircle" BadgeData="@_prestamosVigentes.Count" BadgeColor="Color.Success">
+            <div class="pa-6">
+                @if (_prestamosVigentes.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                        No tienes préstamos activos ni solicitudes en trámite actualmente.
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudDataGrid T="PrestamoListDto" Items="@_prestamosVigentes" Hover="true" Bordered="true" Striped="true" Dense="true">
+                        <Columns>
+                            <TemplateColumn Title="Acciones" CellStyle="width: 110px;">
+                                <CellTemplate>
+                                    <MudTooltip Text="Ver Detalle y Tabla de Amortización">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
+                                                       OnClick="@(() => VerDetalle(context.Item.PrestamoId))" />
+                                    </MudTooltip>
+                                    <MudTooltip Text="Ver Formato de Solicitud">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Print" Color="Color.Primary" Size="Size.Small"
+                                                       OnClick="@(() => VerFormatoImprimible(context.Item.PrestamoId))" />
+                                    </MudTooltip>
+                                </CellTemplate>
+                            </TemplateColumn>
+                            <PropertyColumn Property="x => x.PrestamoId" Title="ID" />
+                            <PropertyColumn Property="x => x.Folio" Title="Folio" />
+                            <PropertyColumn Property="x => x.FechaSolicitud" Title="F. Solicitud" Format="dd/MM/yyyy" />
+                            <PropertyColumn Property="x => x.FechaDeposito" Title="F. Entrega" Format="dd/MM/yyyy" />
+                            <PropertyColumn Property="x => x.NombreCortoFondeadora" Title="Fondeadora" />
+                            <PropertyColumn Property="x => x.TipoPrestamoDescripcion" Title="Tipo" />
+                            <PropertyColumn Property="x => x.TipoPagoDescripcion" Title="Frecuencia" />
+                            <PropertyColumn Property="x => x.MontoAprobado" Title="Monto Nómina" Format="C2" />
+                            <PropertyColumn Property="x => x.TotalPrestamosDirectos" Title="Directos" Format="C2" />
+                            <PropertyColumn Property="x => x.TotalGeneral" Title="Total General" Format="C2" />
+                            <PropertyColumn Property="x => x.ImporteCuotas" Title="Cuota" Format="C2" />
+                            <PropertyColumn Property="x => x.SaldoPendiente" Title="Saldo Pendiente" Format="C2" />
+                            <PropertyColumn Property="x => x.FinalDescuento" Title="Fin Descuento" Format="dd/MM/yyyy" />
+                            <TemplateColumn Title="Estado" CellStyle="width: 140px;">
+                                <CellTemplate>
+                                    <MudChip T="string" Size="Size.Small" Color="@ObtenerColorEstado(context.Item.Estado)">
+                                        @context.Item.EstadoDescripcion
+                                    </MudChip>
+                                </CellTemplate>
+                            </TemplateColumn>
+                        </Columns>
+                    </MudDataGrid>
+                }
+            </div>
+        </MudTabPanel>
+
+        @* ── TAB 2: Historial de Préstamos ── *@
+        <MudTabPanel Text="Historial" Icon="@Icons.Material.Filled.History" BadgeData="@_prestamosHistorial.Count" BadgeColor="Color.Info">
+            <div class="pa-6">
+                @if (_prestamosHistorial.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                        Aún no cuentas con historial de préstamos liquidados, cancelados o rechazados.
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudDataGrid T="PrestamoListDto" Items="@_prestamosHistorial" Hover="true" Bordered="true" Striped="true" Dense="true">
+                        <Columns>
+                            <TemplateColumn Title="Acciones" CellStyle="width: 110px;">
+                                <CellTemplate>
+                                    <MudTooltip Text="Ver Detalle y Tabla de Amortización">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Size="Size.Small"
+                                                       OnClick="@(() => VerDetalle(context.Item.PrestamoId))" />
+                                    </MudTooltip>
+                                    <MudTooltip Text="Ver Formato de Solicitud">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Print" Color="Color.Primary" Size="Size.Small"
+                                                       OnClick="@(() => VerFormatoImprimible(context.Item.PrestamoId))" />
+                                    </MudTooltip>
+                                </CellTemplate>
+                            </TemplateColumn>
+                            <PropertyColumn Property="x => x.PrestamoId" Title="ID" />
+                            <PropertyColumn Property="x => x.Folio" Title="Folio" />
+                            <PropertyColumn Property="x => x.FechaSolicitud" Title="F. Solicitud" Format="dd/MM/yyyy" />
+                            <PropertyColumn Property="x => x.FechaDeposito" Title="F. Entrega" Format="dd/MM/yyyy" />
+                            <PropertyColumn Property="x => x.NombreCortoFondeadora" Title="Fondeadora" />
+                            <PropertyColumn Property="x => x.TipoPrestamoDescripcion" Title="Tipo" />
+                            <PropertyColumn Property="x => x.MontoAprobado" Title="Monto Nómina" Format="C2" />
+                            <PropertyColumn Property="x => x.TotalPrestamosDirectos" Title="Directos" Format="C2" />
+                            <PropertyColumn Property="x => x.TotalGeneral" Title="Total General" Format="C2" />
+                            <PropertyColumn Property="x => x.SaldoPendiente" Title="Saldo" Format="C2" />
+                            <TemplateColumn Title="Estado" CellStyle="width: 140px;">
+                                <CellTemplate>
+                                    <MudChip T="string" Size="Size.Small" Color="@ObtenerColorEstado(context.Item.Estado)">
+                                        @context.Item.EstadoDescripcion
+                                    </MudChip>
+                                </CellTemplate>
+                            </TemplateColumn>
+                        </Columns>
+                        <PagerContent>
+                            <MudDataGridPager T="PrestamoListDto" />
+                        </PagerContent>
+                    </MudDataGrid>
+                }
+            </div>
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    private bool _loading = true;
+    private int? _empleadoId;
+    private string _userEmail = string.Empty;
+    private List<PrestamoListDto> _todosMisPrestamos = [];
+    private List<PrestamoListDto> _prestamosVigentes = [];
+    private List<PrestamoListDto> _prestamosHistorial = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _userEmail = user.FindFirst(ClaimTypes.Email)?.Value ?? user.Identity?.Name ?? string.Empty;
+
+        var empIdClaim = user.FindFirst("empleadoId")?.Value;
+        if (int.TryParse(empIdClaim, out var parsedId) && parsedId > 0)
+        {
+            _empleadoId = parsedId;
+            await CargarMisPrestamos();
+        }
+        else
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task CargarMisPrestamos()
+    {
+        if (!_empleadoId.HasValue) return;
+
+        _loading = true;
+        try
+        {
+            _todosMisPrestamos = await PrestamosApi.GetPorEmpleadoAsync(_empleadoId.Value);
+
+            // Vigentes: Activo (A), Pendiente de Entrega (T), En Evaluación (E), Suspendido (S)
+            _prestamosVigentes = _todosMisPrestamos
+                .Where(p => p.Estado is "A" or "T" or "E" or "S")
+                .OrderByDescending(p => p.FechaSolicitud)
+                .ToList();
+
+            // Historial: Liquidado (L), Pagado (P), Cancelado (C), Rechazado (R)
+            _prestamosHistorial = _todosMisPrestamos
+                .Where(p => p.Estado is not ("A" or "T" or "E" or "S"))
+                .OrderByDescending(p => p.FechaSolicitud)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al consultar tus préstamos: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task VerDetalle(int id)
+    {
+        var parameters = new DialogParameters { ["Id"] = id };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true };
+        await DialogService.ShowAsync<DetallePrestamo>("", parameters, options);
+    }
+
+    private async Task VerFormatoImprimible(int id)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(SolicitudImprimibleDialog.PrestamoId), id }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true, CloseOnEscapeKey = true };
+        await DialogService.ShowAsync<SolicitudImprimibleDialog>($"Solicitud de Préstamo #{id}", parameters, options);
+    }
+
+    private static Color ObtenerColorEstado(string estado) => estado switch
+    {
+        "E" => Color.Warning,
+        "T" => Color.Primary,
+        "A" => Color.Success,
+        "L" or "P" => Color.Info,
+        "C" => Color.Error,
+        "R" => Color.Dark,
+        "S" => Color.Secondary,
+        _ => Color.Default
+    };
+}

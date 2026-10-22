@@ -6,7 +6,7 @@
 @using Microsoft.JSInterop
 @using PrestamosUcayNet.Application.Cobros.Commands
 @using PrestamosUcayNet.Application.DTOs
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador,Cobranza,Finanzas")]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrador,Supervisor,GestorPrestamos")]
 @inject CobrosApiService CobrosApi
 @inject EmpresasApiService EmpresasApi
 @inject CatalogosApiService CatalogosApi

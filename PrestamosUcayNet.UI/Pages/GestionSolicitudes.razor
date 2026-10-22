@@ -4,7 +4,7 @@
 @using PrestamosUcayNet.UI.Services
 @using PrestamosUcayNet.UI.Components.Dialogs
 @using MudBlazor
-@attribute [Authorize(Roles = "Administrador,Gerente")]
+@attribute [Authorize(Roles = "Administrador,Supervisor,GestorPrestamos")]
 @inject PrestamosApiService PrestamosApi
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -43,13 +43,15 @@
                                            OnClick="@(() => EditarSolicitud(context.Item))"
                                            Style="border-radius: 8px;" />
                         </MudTooltip>
-                        <MudTooltip Text="Revisar solicitud">
-                            <MudIconButton Size="@Size.Small"
-                                           Icon="@Icons.Material.Outlined.RateReview"
-                                           Color="@Color.Primary"
-                                           OnClick="@(() => AbrirRevision(context.Item))"
-                                           Style="border-radius: 8px;" />
-                        </MudTooltip>
+                        <AuthorizeView Roles="Administrador,Supervisor" Context="aprobadorCtx">
+                            <MudTooltip Text="Autorizar / Revisar solicitud">
+                                <MudIconButton Size="@Size.Small"
+                                               Icon="@Icons.Material.Outlined.RateReview"
+                                               Color="@Color.Primary"
+                                               OnClick="@(() => AbrirRevision(context.Item))"
+                                               Style="border-radius: 8px;" />
+                            </MudTooltip>
+                        </AuthorizeView>
                     </CellTemplate>
                 </TemplateColumn>
                 <PropertyColumn Property="x => x.PrestamoId" Title="ID" />
